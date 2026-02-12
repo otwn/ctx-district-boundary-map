@@ -68,6 +68,30 @@ body {
   gap: 6px;
 }
 
+.basemap-select {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  color: #000000;
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.basemap-select option {
+  color: #000000;
+  background: #ffffff;
+}
+
+.maplibregl-popup-content {
+  color: #000000;
+}
+
+.maplibregl-popup-content h4,
+.maplibregl-popup-content strong,
+.maplibregl-popup-content td {
+  color: #000000;
+}
+
 .district-list button {
   width: 100%;
   text-align: left;

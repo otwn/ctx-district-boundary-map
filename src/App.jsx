@@ -9,6 +9,8 @@ import { supabase } from './lib/supabase';
 export default function App() {
   const [districts, setDistricts] = useState({ type: 'FeatureCollection', features: [] });
   const [history, setHistory] = useState([]);
+  const [basemap, setBasemap] = useState('osm-standard');
+  const [viewState, setViewState] = useState({ center: [-97.74, 30.28], zoom: 9 });
   const [selectedDistrictId, setSelectedDistrictId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [authOpen, setAuthOpen] = useState(false);
@@ -88,6 +90,8 @@ export default function App() {
         districts={districts.features}
         selectedDistrictId={selectedDistrictId}
         onSelectDistrict={setSelectedDistrictId}
+        basemap={basemap}
+        onBasemapChange={setBasemap}
         history={history}
         user={user}
         role={role}
@@ -96,6 +100,10 @@ export default function App() {
       />
       <main className="map-pane">
         <MapView
+          key={basemap}
+          basemap={basemap}
+          initialView={viewState}
+          onViewChange={setViewState}
           districts={districts}
           selectedDistrictId={selectedDistrictId}
           onSelectDistrict={setSelectedDistrictId}
