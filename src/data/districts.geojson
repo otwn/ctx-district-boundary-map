@@ -1,0 +1,21 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    { "type": "Feature", "properties": { "id": "crystal-falls", "name": "Crystal Falls", "color": "#FFD700" }, "geometry": { "type": "Polygon", "coordinates": [[[-97.92,30.62],[-97.84,30.62],[-97.84,30.69],[-97.92,30.69],[-97.92,30.62]]] } },
+    { "type": "Feature", "properties": { "id": "round-rock", "name": "Round Rock", "color": "#FFD700" }, "geometry": { "type": "Polygon", "coordinates": [[[-97.74,30.50],[-97.63,30.50],[-97.63,30.57],[-97.74,30.57],[-97.74,30.50]]] } },
+    { "type": "Feature", "properties": { "id": "cedar-park", "name": "Cedar Park", "color": "#FFD700" }, "geometry": { "type": "Polygon", "coordinates": [[[-97.86,30.48],[-97.77,30.48],[-97.77,30.56],[-97.86,30.56],[-97.86,30.48]]] } },
+    { "type": "Feature", "properties": { "id": "pflugerville", "name": "Pflugerville", "color": "#FFD700" }, "geometry": { "type": "Polygon", "coordinates": [[[-97.67,30.42],[-97.54,30.42],[-97.54,30.49],[-97.67,30.49],[-97.67,30.42]]] } },
+    { "type": "Feature", "properties": { "id": "lakeline", "name": "Lakeline", "color": "#FFD700" }, "geometry": { "type": "Polygon", "coordinates": [[[-97.83,30.44],[-97.74,30.44],[-97.74,30.50],[-97.83,30.50],[-97.83,30.44]]] } },
+    { "type": "Feature", "properties": { "id": "wells-branch", "name": "Wells Branch", "color": "#FFD700" }, "geometry": { "type": "Polygon", "coordinates": [[[-97.72,30.41],[-97.63,30.41],[-97.63,30.47],[-97.72,30.47],[-97.72,30.41]]] } },
+    { "type": "Feature", "properties": { "id": "walnut-creek", "name": "Walnut Creek", "color": "#FFD700" }, "geometry": { "type": "Polygon", "coordinates": [[[-97.75,30.36],[-97.65,30.36],[-97.65,30.42],[-97.75,30.42],[-97.75,30.36]]] } },
+    { "type": "Feature", "properties": { "id": "hyde-park", "name": "Hyde Park", "color": "#FFD700" }, "geometry": { "type": "Polygon", "coordinates": [[[-97.76,30.29],[-97.72,30.29],[-97.72,30.33],[-97.76,30.33],[-97.76,30.29]]] } },
+    { "type": "Feature", "properties": { "id": "dellwood", "name": "Dellwood", "color": "#FFD700" }, "geometry": { "type": "Polygon", "coordinates": [[[-97.71,30.30],[-97.67,30.30],[-97.67,30.34],[-97.71,30.34],[-97.71,30.30]]] } },
+    { "type": "Feature", "properties": { "id": "downtown", "name": "Downtown", "color": "#FFD700" }, "geometry": { "type": "Polygon", "coordinates": [[[-97.76,30.25],[-97.73,30.25],[-97.73,30.28],[-97.76,30.28],[-97.76,30.25]]] } },
+    { "type": "Feature", "properties": { "id": "south-mopac", "name": "South Mopac", "color": "#FFD700" }, "geometry": { "type": "Polygon", "coordinates": [[[-97.83,30.19],[-97.74,30.19],[-97.74,30.27],[-97.83,30.27],[-97.83,30.19]]] } },
+    { "type": "Feature", "properties": { "id": "live-oak", "name": "Live Oak", "color": "#FFD700" }, "geometry": { "type": "Polygon", "coordinates": [[[-97.74,30.20],[-97.67,30.20],[-97.67,30.27],[-97.74,30.27],[-97.74,30.20]]] } },
+    { "type": "Feature", "properties": { "id": "brodie", "name": "Brodie", "color": "#FFD700" }, "geometry": { "type": "Polygon", "coordinates": [[[-97.83,30.15],[-97.75,30.15],[-97.75,30.23],[-97.83,30.23],[-97.83,30.15]]] } },
+    { "type": "Feature", "properties": { "id": "searight", "name": "Searight", "color": "#FFD700" }, "geometry": { "type": "Polygon", "coordinates": [[[-97.77,30.12],[-97.70,30.12],[-97.70,30.19],[-97.77,30.19],[-97.77,30.12]]] } },
+    { "type": "Feature", "properties": { "id": "hill-country", "name": "Hill Country", "color": "#FFD700" }, "geometry": { "type": "Polygon", "coordinates": [[[-98.03,30.20],[-97.86,30.20],[-97.86,30.34],[-98.03,30.34],[-98.03,30.20]]] } },
+    { "type": "Feature", "properties": { "id": "del-valle", "name": "Del Valle", "color": "#FFD700" }, "geometry": { "type": "Polygon", "coordinates": [[[-97.71,30.14],[-97.56,30.14],[-97.56,30.28],[-97.71,30.28],[-97.71,30.14]]] } }
+  ]
+}
