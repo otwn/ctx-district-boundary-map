@@ -1,3 +1,4 @@
+import fallbackRaw from '../data/districts.geojson?raw';
 import fallbackUrl from '../data/districts.geojson?url';
 import { supabase } from './supabase';
 
@@ -109,13 +110,24 @@ function normalizeFallbackDistricts(rawCollection) {
 
 const EMPTY_FC = { type: 'FeatureCollection', features: [] };
 let fallbackDistrictsCache = null;
+const SUPABASE_READ_TIMEOUT_MS = 6000;
 
 async function loadFallbackDistricts() {
   if (fallbackDistrictsCache) {
     return fallbackDistrictsCache;
   }
   try {
-    const response = await fetch(fallbackUrl);
+    const raw = JSON.parse(fallbackRaw);
+    fallbackDistrictsCache = normalizeFallbackDistricts(raw);
+    if (fallbackDistrictsCache.features.length) {
+      return fallbackDistrictsCache;
+    }
+  } catch {
+    // Fall through to URL fetch path.
+  }
+
+  try {
+    const response = await fetch(fallbackUrl, { cache: 'no-store' });
     if (!response.ok) {
       console.error('Fallback geojson fetch failed:', response.status);
       return EMPTY_FC;
@@ -131,79 +143,110 @@ async function loadFallbackDistricts() {
 
 const SAFE_EDIT_ACTIONS = new Set(['update', 'insert', 'soft_delete', 'restore']);
 
+function parseMaybeJson(value) {
+  if (value && typeof value === 'object') {
+    return value;
+  }
+  if (typeof value !== 'string') {
+    return null;
+  }
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
+}
+
+function isValidGeometry(geometry) {
+  if (!geometry || typeof geometry !== 'object') {
+    return false;
+  }
+  const allowedTypes = new Set(['Polygon', 'MultiPolygon']);
+  if (!allowedTypes.has(geometry.type)) {
+    return false;
+  }
+  return Array.isArray(geometry.coordinates) && geometry.coordinates.length > 0;
+}
+
+async function withTimeout(promise, timeoutMs, label) {
+  let timer = null;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`${label} timed out after ${timeoutMs}ms`)), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 function rowsToFeatureCollection(rows) {
+  const features = rows
+    .map((row) => {
+      const geometry = parseMaybeJson(row.geometry);
+      if (!isValidGeometry(geometry)) {
+        return null;
+      }
+      return {
+        type: 'Feature',
+        properties: {
+          id: row.id,
+          name: normalizeDistrictName(row.name),
+          color: row.color,
+        },
+        geometry,
+      };
+    })
+    .filter(Boolean);
+
   return {
     type: 'FeatureCollection',
-    features: rows.map((row) => ({
-      type: 'Feature',
-      properties: {
-        id: row.id,
-        name: normalizeDistrictName(row.name),
-        color: row.color,
-      },
-      geometry: row.geometry,
-    })),
+    features,
   };
 }
 
-async function seedDistrictsToSupabase(features) {
-  if (!supabase || !features?.length) return false;
-
-  const rows = features.map((f) => ({
-    id: f.properties.id,
-    name: f.properties.name,
-    color: f.properties.color || '#FFD700',
-    geometry: f.geometry,
-    is_active: true,
-  }));
-
-  const { error } = await supabase
-    .from('districts')
-    .upsert(rows, { onConflict: 'id' });
-
-  if (error) {
-    console.warn('Failed to seed districts to Supabase:', error.message);
-    return false;
-  }
-  return true;
+export async function fetchDistricts() {
+  const { data } = await fetchDistrictsWithMeta();
+  return data;
 }
 
-export async function fetchDistricts() {
+export async function fetchDistrictsWithMeta() {
+  const fallback = await loadFallbackDistricts();
+
   if (!supabase) {
-    return loadFallbackDistricts();
+    return { data: fallback, source: 'fallback' };
   }
 
   try {
-    const { data, error } = await supabase
-      .from('districts')
-      .select('id,name,color,geometry,is_active')
-      .eq('is_active', true)
-      .order('name');
-
-    if (!error && data?.length) {
-      return rowsToFeatureCollection(data);
-    }
-
-    // Supabase is empty or errored — try to seed from fallback
-    const fallback = await loadFallbackDistricts();
-    const seeded = await seedDistrictsToSupabase(fallback.features);
-
-    if (seeded) {
-      // Re-query to get the freshly seeded data
-      const { data: freshData, error: freshError } = await supabase
+    const { data, error } = await withTimeout(
+      supabase
         .from('districts')
         .select('id,name,color,geometry,is_active')
         .eq('is_active', true)
-        .order('name');
+        .order('name'),
+      SUPABASE_READ_TIMEOUT_MS,
+      'Supabase districts query',
+    );
 
-      if (!freshError && freshData?.length) {
-        return rowsToFeatureCollection(freshData);
-      }
+    if (error) {
+      console.warn('Supabase districts read failed. Using local fallback:', error.message);
+      return { data: fallback, source: 'fallback' };
     }
 
-    return fallback;
-  } catch {
-    return loadFallbackDistricts();
+    if (data?.length) {
+      const fromDb = rowsToFeatureCollection(data);
+      if (fromDb.features.length) {
+        return { data: fromDb, source: 'supabase' };
+      }
+      console.warn('Supabase districts rows were present but invalid. Using local fallback.');
+    }
+
+    return { data: fallback, source: 'fallback' };
+  } catch (error) {
+    console.warn('Using local fallback districts due to Supabase read failure:', error?.message || error);
+    return { data: fallback, source: 'fallback' };
   }
 }
 

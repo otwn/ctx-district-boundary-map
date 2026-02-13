@@ -30,7 +30,16 @@ export async function signInWithPassword(email, password) {
     return { ok: false, message: 'Supabase is not configured.' };
   }
 
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  const normalizedPassword = String(password || '');
+  if (!normalizedEmail || !normalizedPassword) {
+    return { ok: false, message: 'Email and password are required.' };
+  }
+
+  const { error } = await supabase.auth.signInWithPassword({
+    email: normalizedEmail,
+    password: normalizedPassword,
+  });
   if (error) {
     return { ok: false, message: error.message };
   }
@@ -43,7 +52,16 @@ export async function signUpWithPassword(email, password) {
     return { ok: false, message: 'Supabase is not configured.' };
   }
 
-  const { error } = await supabase.auth.signUp({ email, password });
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  const normalizedPassword = String(password || '');
+  if (!normalizedEmail || !normalizedPassword) {
+    return { ok: false, message: 'Email and password are required.' };
+  }
+
+  const { error } = await supabase.auth.signUp({
+    email: normalizedEmail,
+    password: normalizedPassword,
+  });
   if (error) {
     return { ok: false, message: error.message };
   }

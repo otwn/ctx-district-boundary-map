@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import maplibregl from 'maplibre-gl';
-import MapboxDraw from '@mapbox/mapbox-gl-draw';
+import { createGeomanInstance } from '@geoman-io/maplibre-geoman-free/dist/maplibre-geoman.es.js';
 
 export default function DrawControls({
   mapRef,
@@ -13,8 +12,7 @@ export default function DrawControls({
   onCreate,
   onDelete,
 }) {
-  const drawRef = useRef(null);
-  const activeFeatureRef = useRef(null);
+  const geomanRef = useRef(null);
   const modeRef = useRef('idle');
   const [editing, setEditing] = useState(false);
 
@@ -25,120 +23,121 @@ export default function DrawControls({
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !canEdit || !mapReady || drawRef.current) {
+    if (!map || !canEdit || !mapReady || geomanRef.current) {
       return;
     }
 
-    // MapLibre compatibility: MapboxDraw still expects mapboxgl-* class names by default.
-    MapboxDraw.constants.classes.CANVAS = 'maplibregl-canvas';
-    MapboxDraw.constants.classes.CANVAS_CONTAINER = 'maplibregl-canvas-container';
-    MapboxDraw.constants.classes.CONTROL_BASE = 'maplibregl-ctrl';
-    MapboxDraw.constants.classes.CONTROL_PREFIX = 'maplibregl-ctrl-';
-    MapboxDraw.constants.classes.CONTROL_GROUP = 'maplibregl-ctrl-group';
-    MapboxDraw.constants.classes.ATTRIBUTION = 'maplibregl-ctrl-attrib';
-
-    window.mapboxgl = maplibregl;
-
-    const draw = new MapboxDraw({
-      displayControlsDefault: false,
-      controls: {},
-      defaultMode: 'simple_select',
-    });
-
-    map.addControl(draw, 'top-left');
-    drawRef.current = draw;
-    setMode('simple_select');
-
-    const handleCreate = (event) => {
-      if (modeRef.current !== 'create-pending') {
+    let cancelled = false;
+    const onCreate = () => {
+      const geoman = geomanRef.current;
+      if (!geoman || modeRef.current !== 'create-pending') {
         return;
       }
-      const featureId = event.features?.[0]?.id;
-      if (!featureId) {
-        return;
-      }
-      activeFeatureRef.current = featureId;
+      geoman.disableDraw();
       setMode('create');
       setEditing(true);
-      draw.changeMode('direct_select', { featureId });
     };
 
-    const handleModeChange = (event) => {
-      setMode(event.mode || 'simple_select');
-    };
+    (async () => {
+      try {
+        const geoman = await createGeomanInstance(map, {
+          settings: {
+            controlsUiEnabledByDefault: false,
+          },
+        });
 
-    map.on('draw.create', handleCreate);
-    map.on('draw.modechange', handleModeChange);
+        if (cancelled || !geoman) {
+          await geoman?.destroy({ removeSources: false });
+          return;
+        }
+
+        geomanRef.current = geoman;
+        setMode('idle');
+        map.on('gm:create', onCreate);
+      } catch (error) {
+        console.error('Geoman setup failed:', error);
+      }
+    })();
 
     return () => {
-      map.off('draw.create', handleCreate);
-      map.off('draw.modechange', handleModeChange);
-      map.removeControl(draw);
-      drawRef.current = null;
-      activeFeatureRef.current = null;
+      cancelled = true;
+      map.off('gm:create', onCreate);
+      const geoman = geomanRef.current;
+      geomanRef.current = null;
       setMode('idle');
       setEditing(false);
+      if (geoman) {
+        geoman.destroy({ removeSources: false }).catch(() => {});
+      }
     };
   }, [canEdit, mapReady, mapRef]);
 
   const startEditing = () => {
-    const draw = drawRef.current;
-    if (!draw || !selectedDistrictId || editing) {
+    const geoman = geomanRef.current;
+    if (!geoman || !selectedDistrictId || editing) {
       return;
     }
 
     const target = districts.features.find((feature) => feature.properties?.id === selectedDistrictId);
-    if (!target) {
+    if (!target?.geometry) {
       return;
     }
 
-    draw.deleteAll();
-    const drawId = draw.add({
+    geoman.disableDraw();
+    geoman.disableGlobalEditMode();
+    geoman.features.deleteAll();
+    const imported = geoman.features.importGeoJsonFeature({
       type: 'Feature',
       properties: {
-        districtId: target.properties.id,
+        districtId: target.properties?.id,
+        name: target.properties?.name,
       },
       geometry: target.geometry,
-    })[0];
+    });
+    if (!imported) {
+      return;
+    }
 
-    activeFeatureRef.current = drawId;
+    geoman.enableGlobalEditMode();
     setMode('edit');
-    draw.changeMode('simple_select', { featureIds: [drawId] });
-    draw.changeMode('direct_select', { featureId: drawId });
     setEditing(true);
   };
 
   const startCreate = () => {
-    const draw = drawRef.current;
-    if (!draw || !canAdmin || editing) {
+    const geoman = geomanRef.current;
+    if (!geoman || !canAdmin || editing) {
       return;
     }
-    draw.deleteAll();
-    activeFeatureRef.current = null;
+
+    geoman.disableGlobalEditMode();
+    geoman.features.deleteAll();
+    geoman.enableDraw('polygon');
     setMode('create-pending');
     setEditing(false);
-    draw.changeMode('draw_polygon');
   };
 
   const cancelEditing = () => {
-    const draw = drawRef.current;
-    if (!draw) {
+    const geoman = geomanRef.current;
+    if (!geoman) {
       return;
     }
-    draw.deleteAll();
-    activeFeatureRef.current = null;
+    geoman.disableDraw();
+    geoman.disableGlobalEditMode();
+    geoman.features.deleteAll();
     setMode('idle');
     setEditing(false);
   };
 
   const saveEditing = async () => {
-    const draw = drawRef.current;
-    const activeId = activeFeatureRef.current;
-    if (!draw || !activeId) {
+    const geoman = geomanRef.current;
+    if (!geoman) {
       return;
     }
 
-    const feature = draw.get(activeId);
+    const collection = geoman.features.exportGeoJson();
+    const feature = collection?.features?.find(
+      (entry) => entry?.geometry?.type === 'Polygon' || entry?.geometry?.type === 'MultiPolygon',
+    );
     if (!feature?.geometry) {
       return;
     }

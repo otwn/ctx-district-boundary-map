@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import MapView from './components/MapView';
 import Sidebar from './components/Sidebar';
 import AuthModal from './components/AuthModal';
 import {
   createDistrictBoundary,
   fetchDistricts,
+  fetchDistrictsWithMeta,
   fetchEditHistory,
   softDeleteDistrict,
   updateDistrictBoundary,
@@ -22,7 +23,8 @@ export default function App() {
   const [authOpen, setAuthOpen] = useState(false);
   const [user, setUser] = useState(null);
   const [role, setRole] = useState('viewer');
-  const isEditor = useMemo(() => role === 'editor' || role === 'admin', [role]);
+  const retryTimeoutRef = useRef(null);
+  const isEditor = useMemo(() => Boolean(user) || role === 'editor' || role === 'admin', [role, user]);
   const isAdmin = useMemo(() => role === 'admin', [role]);
 
   useEffect(() => {
@@ -30,21 +32,61 @@ export default function App() {
 
     const load = async () => {
       setLoading(true);
-      const [districtData, edits, sessionData] = await Promise.all([
-        fetchDistricts(),
-        fetchEditHistory(),
-        getSessionAndRole().catch(() => ({ user: null, role: 'viewer' })),
-      ]);
+      const { data: districtData, source } = await fetchDistrictsWithMeta();
 
       if (!alive) {
         return;
       }
 
       setDistricts(districtData);
-      setHistory(edits);
-      setUser(sessionData.user);
-      setRole(sessionData.role);
       setLoading(false);
+
+      const retrySupabaseDistricts = async () => {
+        if (!alive) {
+          return;
+        }
+        const result = await fetchDistrictsWithMeta();
+        if (!alive) {
+          return;
+        }
+        if (result.source === 'supabase') {
+          setDistricts(result.data);
+          retryTimeoutRef.current = null;
+          return;
+        }
+        retryTimeoutRef.current = setTimeout(retrySupabaseDistricts, 15000);
+      };
+
+      if (source === 'fallback') {
+        retryTimeoutRef.current = setTimeout(retrySupabaseDistricts, 15000);
+      }
+
+      // Keep role/history loading independent so edit controls are not blocked by slow requests.
+      fetchEditHistory()
+        .then((edits) => {
+          if (alive) {
+            setHistory(edits);
+          }
+        })
+        .catch(() => {
+          if (alive) {
+            setHistory([]);
+          }
+        });
+
+      getSessionAndRole()
+        .then((sessionData) => {
+          if (alive) {
+            setUser(sessionData.user);
+            setRole(sessionData.role);
+          }
+        })
+        .catch(() => {
+          if (alive) {
+            setUser(null);
+            setRole('viewer');
+          }
+        });
     };
 
     load();
@@ -68,12 +110,21 @@ export default function App() {
 
     return () => {
       alive = false;
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
+        retryTimeoutRef.current = null;
+      }
       sub?.data?.subscription?.unsubscribe();
     };
   }, []);
 
   const refreshDistrictsAndHistory = async () => {
-    const [districtData, edits] = await Promise.all([fetchDistricts(), fetchEditHistory()]);
+    const [districtDataResult, editsResult] = await Promise.allSettled([fetchDistricts(), fetchEditHistory()]);
+    const districtData =
+      districtDataResult.status === 'fulfilled'
+        ? districtDataResult.value
+        : { type: 'FeatureCollection', features: [] };
+    const edits = editsResult.status === 'fulfilled' ? editsResult.value : [];
     setDistricts(districtData);
     setHistory(edits);
   };

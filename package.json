@@ -9,9 +9,9 @@
     "preview": "node ./node_modules/vite/bin/vite.js preview"
   },
   "dependencies": {
-    "@mapbox/mapbox-gl-draw": "^1.5.0",
+    "@geoman-io/maplibre-geoman-free": "^0.6.2",
     "@supabase/supabase-js": "^2.49.1",
-    "maplibre-gl": "^4.7.1",
+    "maplibre-gl": "^5.17.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
