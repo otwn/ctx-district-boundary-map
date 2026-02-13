@@ -146,6 +146,28 @@ function rowsToFeatureCollection(rows) {
   };
 }
 
+async function seedDistrictsToSupabase(features) {
+  if (!supabase || !features?.length) return false;
+
+  const rows = features.map((f) => ({
+    id: f.properties.id,
+    name: f.properties.name,
+    color: f.properties.color || '#FFD700',
+    geometry: f.geometry,
+    is_active: true,
+  }));
+
+  const { error } = await supabase
+    .from('districts')
+    .upsert(rows, { onConflict: 'id' });
+
+  if (error) {
+    console.warn('Failed to seed districts to Supabase:', error.message);
+    return false;
+  }
+  return true;
+}
+
 export async function fetchDistricts() {
   if (!supabase) {
     return loadFallbackDistricts();
@@ -157,10 +179,29 @@ export async function fetchDistricts() {
       .select('id,name,color,geometry,is_active')
       .eq('is_active', true)
       .order('name');
-    if (error || !data?.length) {
-      return loadFallbackDistricts();
+
+    if (!error && data?.length) {
+      return rowsToFeatureCollection(data);
     }
-    return rowsToFeatureCollection(data);
+
+    // Supabase is empty or errored — try to seed from fallback
+    const fallback = await loadFallbackDistricts();
+    const seeded = await seedDistrictsToSupabase(fallback.features);
+
+    if (seeded) {
+      // Re-query to get the freshly seeded data
+      const { data: freshData, error: freshError } = await supabase
+        .from('districts')
+        .select('id,name,color,geometry,is_active')
+        .eq('is_active', true)
+        .order('name');
+
+      if (!freshError && freshData?.length) {
+        return rowsToFeatureCollection(freshData);
+      }
+    }
+
+    return fallback;
   } catch {
     return loadFallbackDistricts();
   }
