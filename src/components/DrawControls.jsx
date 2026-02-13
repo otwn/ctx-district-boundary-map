@@ -2,6 +2,48 @@ import { useEffect, useRef, useState } from 'react';
 import maplibregl from 'maplibre-gl';
 import MapboxDraw from '@mapbox/mapbox-gl-draw';
 
+function wrapLiteralArraysInExpression(value) {
+  if (!Array.isArray(value)) {
+    return value;
+  }
+  if (!value.length) {
+    return value;
+  }
+
+  const [first, ...rest] = value;
+
+  // Expression form: [operator, ...args]
+  if (typeof first === 'string') {
+    return [
+      first,
+      ...rest.map((arg) => {
+        if (Array.isArray(arg) && arg.length && typeof arg[0] === 'number') {
+          return ['literal', arg];
+        }
+        return wrapLiteralArraysInExpression(arg);
+      }),
+    ];
+  }
+
+  return value.map((item) => wrapLiteralArraysInExpression(item));
+}
+
+function getMapLibreCompatibleDrawStyles() {
+  const baseStyles = Array.isArray(MapboxDraw?.lib?.theme) ? MapboxDraw.lib.theme : [];
+  return baseStyles.map((style) => {
+    if (!style?.paint || !('line-dasharray' in style.paint)) {
+      return style;
+    }
+    return {
+      ...style,
+      paint: {
+        ...style.paint,
+        'line-dasharray': wrapLiteralArraysInExpression(style.paint['line-dasharray']),
+      },
+    };
+  });
+}
+
 export default function DrawControls({
   mapRef,
   mapReady,
@@ -43,9 +85,15 @@ export default function DrawControls({
       displayControlsDefault: false,
       controls: {},
       defaultMode: 'simple_select',
+      styles: getMapLibreCompatibleDrawStyles(),
     });
 
-    map.addControl(draw, 'top-left');
+    try {
+      map.addControl(draw, 'top-left');
+    } catch (error) {
+      console.error('Draw control setup failed:', error);
+      return undefined;
+    }
     drawRef.current = draw;
     setMode('simple_select');
 

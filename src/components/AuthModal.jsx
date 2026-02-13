@@ -33,9 +33,11 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
       <div className="auth-modal" onClick={(event) => event.stopPropagation()}>
         <h2>Login or Register</h2>
         <form onSubmit={(event) => event.preventDefault()}>
-          <label>
+          <label htmlFor="auth-email">
             Email
             <input
+              id="auth-email"
+              name="email"
               type="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
@@ -44,9 +46,11 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
             />
           </label>
 
-          <label>
+          <label htmlFor="auth-password">
             Password
             <input
+              id="auth-password"
+              name="password"
               type="password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}

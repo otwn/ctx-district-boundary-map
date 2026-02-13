@@ -30,8 +30,17 @@ export default function App() {
 
     const load = async () => {
       setLoading(true);
-      const [districtData, edits, sessionData] = await Promise.all([
-        fetchDistricts(),
+      const districtData = await fetchDistricts();
+
+      if (!alive) {
+        return;
+      }
+
+      setDistricts(districtData);
+      setLoading(false);
+
+      // Non-critical data should not block boundary rendering.
+      const [editsResult, sessionResult] = await Promise.allSettled([
         fetchEditHistory(),
         getSessionAndRole().catch(() => ({ user: null, role: 'viewer' })),
       ]);
@@ -40,11 +49,19 @@ export default function App() {
         return;
       }
 
-      setDistricts(districtData);
-      setHistory(edits);
-      setUser(sessionData.user);
-      setRole(sessionData.role);
-      setLoading(false);
+      if (editsResult.status === 'fulfilled') {
+        setHistory(editsResult.value);
+      } else {
+        setHistory([]);
+      }
+
+      if (sessionResult.status === 'fulfilled') {
+        setUser(sessionResult.value.user);
+        setRole(sessionResult.value.role);
+      } else {
+        setUser(null);
+        setRole('viewer');
+      }
     };
 
     load();
@@ -73,7 +90,12 @@ export default function App() {
   }, []);
 
   const refreshDistrictsAndHistory = async () => {
-    const [districtData, edits] = await Promise.all([fetchDistricts(), fetchEditHistory()]);
+    const [districtDataResult, editsResult] = await Promise.allSettled([fetchDistricts(), fetchEditHistory()]);
+    const districtData =
+      districtDataResult.status === 'fulfilled'
+        ? districtDataResult.value
+        : { type: 'FeatureCollection', features: [] };
+    const edits = editsResult.status === 'fulfilled' ? editsResult.value : [];
     setDistricts(districtData);
     setHistory(edits);
   };

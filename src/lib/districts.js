@@ -1,4 +1,5 @@
-import fallbackUrl from '../data/districts.geojson?url';
+import fallbackGeoJsonRaw from '../data/districts.geojson?raw';
+import fallbackGeoJsonUrl from '../data/districts.geojson?url';
 import { supabase } from './supabase';
 
 const FALLBACK_DISTRICT_ORDER = [
@@ -75,56 +76,187 @@ const DISTRICT_ID_BY_NAME = {
   'Del Valle': 'del-valle',
 };
 
+function toDistrictId(value) {
+  return String(value)
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function canonicalizeDistrictName(rawName) {
+  const normalized = String(rawName || '').trim();
+  if (!normalized) {
+    return '';
+  }
+  if (SOURCE_NAME_TO_CANONICAL[normalized]) {
+    return SOURCE_NAME_TO_CANONICAL[normalized];
+  }
+  // Industry-standard fallback: preserve source semantics instead of dropping unknown names.
+  return normalized;
+}
+
 function normalizeFallbackDistricts(rawCollection) {
-  const featuresByName = new Map();
+  const featuresById = new Map();
 
   for (const feature of rawCollection?.features || []) {
+    const properties = feature?.properties || {};
     const sourceName =
-      feature?.properties?.name ||
-      feature?.properties?.Name ||
-      feature?.properties?.District ||
+      properties.name ||
+      properties.Name ||
+      properties.District ||
+      properties.district ||
       '';
+    const canonicalName = canonicalizeDistrictName(sourceName);
+    const sourceId =
+      properties.id ||
+      properties.ID ||
+      properties.district_id ||
+      properties.districtId ||
+      '';
+    const canonicalId = sourceId
+      ? toDistrictId(sourceId)
+      : DISTRICT_ID_BY_NAME[canonicalName] || toDistrictId(canonicalName);
 
-    const canonicalName = SOURCE_NAME_TO_CANONICAL[sourceName];
-    if (!canonicalName || featuresByName.has(canonicalName)) {
+    if (!canonicalId || !feature?.geometry || featuresById.has(canonicalId)) {
       continue;
     }
 
-    featuresByName.set(canonicalName, {
+    featuresById.set(canonicalId, {
       type: 'Feature',
       properties: {
-        id: DISTRICT_ID_BY_NAME[canonicalName],
-        name: canonicalName,
-        color: '#FFD700',
+        id: canonicalId,
+        name: canonicalName || canonicalId,
+        color: properties.color || properties.Color || '#FFD700',
       },
       geometry: feature.geometry,
     });
   }
 
+  const features = Array.from(featuresById.values());
+  features.sort((left, right) => {
+    const leftName = left.properties?.name || '';
+    const rightName = right.properties?.name || '';
+    const leftIndex = FALLBACK_DISTRICT_ORDER.indexOf(leftName);
+    const rightIndex = FALLBACK_DISTRICT_ORDER.indexOf(rightName);
+    if (leftIndex === -1 && rightIndex === -1) {
+      return leftName.localeCompare(rightName);
+    }
+    if (leftIndex === -1) return 1;
+    if (rightIndex === -1) return -1;
+    return leftIndex - rightIndex;
+  });
+
   return {
     type: 'FeatureCollection',
-    features: FALLBACK_DISTRICT_ORDER.map((name) => featuresByName.get(name)).filter(Boolean),
+    features,
   };
 }
 
 const EMPTY_FC = { type: 'FeatureCollection', features: [] };
 let fallbackDistrictsCache = null;
+let fallbackParseErrorLogged = false;
+const SUPABASE_READ_TIMEOUT_MS = 6000;
+
+function parseMaybeJson(value) {
+  if (value && typeof value === 'object') {
+    return value;
+  }
+  if (typeof value !== 'string') {
+    return null;
+  }
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
+}
+
+function isValidGeometry(geometry) {
+  if (!geometry || typeof geometry !== 'object') {
+    return false;
+  }
+  const allowedTypes = new Set(['Polygon', 'MultiPolygon']);
+  if (!allowedTypes.has(geometry.type)) {
+    return false;
+  }
+  return Array.isArray(geometry.coordinates) && geometry.coordinates.length > 0;
+}
+
+async function withTimeout(promise, timeoutMs, label) {
+  let timer = null;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        timer = setTimeout(() => {
+          reject(new Error(`${label} timed out after ${timeoutMs}ms`));
+        }, timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer) {
+      clearTimeout(timer);
+    }
+  }
+}
 
 async function loadFallbackDistricts() {
   if (fallbackDistrictsCache) {
     return fallbackDistrictsCache;
   }
-  try {
-    const response = await fetch(fallbackUrl);
-    if (!response.ok) {
-      console.error('Fallback geojson fetch failed:', response.status);
-      return EMPTY_FC;
+
+  const setCacheFromRawCollection = (rawCollection) => {
+    fallbackDistrictsCache = normalizeFallbackDistricts(rawCollection);
+    if (!fallbackDistrictsCache.features.length) {
+      console.error('Fallback districts normalization produced 0 features. Check source GeoJSON properties.');
     }
-    const raw = await response.json();
-    fallbackDistrictsCache = normalizeFallbackDistricts(raw);
     return fallbackDistrictsCache;
+  };
+
+  try {
+    const maybeUrlLike = typeof fallbackGeoJsonRaw === 'string' && !fallbackGeoJsonRaw.trim().startsWith('{');
+    if (!maybeUrlLike) {
+      const raw = JSON.parse(fallbackGeoJsonRaw);
+      return setCacheFromRawCollection(raw);
+    }
   } catch (err) {
-    console.error('Failed to load fallback districts:', err);
+    // Keep this one-time to avoid noisy logs during retries.
+    if (!fallbackParseErrorLogged) {
+      fallbackParseErrorLogged = true;
+      console.warn('Failed to parse bundled fallback districts GeoJSON. Will try URL fetch fallback:', err);
+    }
+  }
+
+  try {
+    const response = await fetch(fallbackGeoJsonUrl, { cache: 'no-store' });
+    if (response.ok) {
+      const raw = await response.json();
+      return setCacheFromRawCollection(raw);
+    }
+    console.error('Fallback GeoJSON URL fetch failed:', response.status);
+  } catch (err) {
+    console.error('Fallback GeoJSON URL fetch failed:', err);
+  }
+
+  try {
+    const response = await fetch('/districts.geojson', { cache: 'no-store' });
+    if (response.ok) {
+      const raw = await response.json();
+      return setCacheFromRawCollection(raw);
+    }
+  } catch {
+    // no-op: this is a best-effort final fallback path for static hosting setups.
+  }
+
+  if (!fallbackParseErrorLogged) {
+    fallbackParseErrorLogged = true;
+    console.error('All fallback district loading strategies failed. Returning empty collection.');
+  }
+
+  try {
+    return EMPTY_FC;
+  } catch {
     return EMPTY_FC;
   }
 }
@@ -132,78 +264,65 @@ async function loadFallbackDistricts() {
 const SAFE_EDIT_ACTIONS = new Set(['update', 'insert', 'soft_delete', 'restore']);
 
 function rowsToFeatureCollection(rows) {
+  const features = rows
+    .map((row) => {
+      const geometry = parseMaybeJson(row.geometry);
+      if (!isValidGeometry(geometry)) {
+        return null;
+      }
+      return {
+        type: 'Feature',
+        properties: {
+          id: row.id,
+          name: normalizeDistrictName(row.name),
+          color: row.color,
+        },
+        geometry,
+      };
+    })
+    .filter(Boolean);
+
   return {
     type: 'FeatureCollection',
-    features: rows.map((row) => ({
-      type: 'Feature',
-      properties: {
-        id: row.id,
-        name: normalizeDistrictName(row.name),
-        color: row.color,
-      },
-      geometry: row.geometry,
-    })),
+    features,
   };
 }
 
-async function seedDistrictsToSupabase(features) {
-  if (!supabase || !features?.length) return false;
-
-  const rows = features.map((f) => ({
-    id: f.properties.id,
-    name: f.properties.name,
-    color: f.properties.color || '#FFD700',
-    geometry: f.geometry,
-    is_active: true,
-  }));
-
-  const { error } = await supabase
-    .from('districts')
-    .upsert(rows, { onConflict: 'id' });
-
-  if (error) {
-    console.warn('Failed to seed districts to Supabase:', error.message);
-    return false;
-  }
-  return true;
-}
-
 export async function fetchDistricts() {
+  const fallback = await loadFallbackDistricts();
+
   if (!supabase) {
-    return loadFallbackDistricts();
+    return fallback;
   }
 
   try {
-    const { data, error } = await supabase
-      .from('districts')
-      .select('id,name,color,geometry,is_active')
-      .eq('is_active', true)
-      .order('name');
-
-    if (!error && data?.length) {
-      return rowsToFeatureCollection(data);
-    }
-
-    // Supabase is empty or errored — try to seed from fallback
-    const fallback = await loadFallbackDistricts();
-    const seeded = await seedDistrictsToSupabase(fallback.features);
-
-    if (seeded) {
-      // Re-query to get the freshly seeded data
-      const { data: freshData, error: freshError } = await supabase
+    const { data, error } = await withTimeout(
+      supabase
         .from('districts')
         .select('id,name,color,geometry,is_active')
         .eq('is_active', true)
-        .order('name');
+        .order('name'),
+      SUPABASE_READ_TIMEOUT_MS,
+      'Supabase districts query',
+    );
 
-      if (!freshError && freshData?.length) {
-        return rowsToFeatureCollection(freshData);
+    if (error) {
+      console.warn('Supabase districts read failed. Using local fallback:', error.message);
+      return fallback;
+    }
+
+    if (data?.length) {
+      const fromDb = rowsToFeatureCollection(data);
+      if (fromDb.features.length) {
+        return fromDb;
       }
+      console.warn('Supabase districts rows were present but had invalid geometry. Falling back to local GeoJSON.');
     }
 
     return fallback;
-  } catch {
-    return loadFallbackDistricts();
+  } catch (error) {
+    console.warn('Using local fallback districts due to Supabase read failure:', error?.message || error);
+    return fallback;
   }
 }
 
@@ -227,14 +346,6 @@ async function runDistrictEdit(action, payload) {
   if (error) {
     throw new Error(error.message);
   }
-}
-
-function toDistrictId(name) {
-  return String(name)
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
 }
 
 export async function updateDistrictBoundary(id, newGeometry) {

@@ -262,8 +262,8 @@ export default function MapView({
           type: 'fill',
           source: 'districts',
           paint: {
-            'fill-color': ['coalesce', ['get', 'color'], '#FFD700'],
-            'fill-opacity': 0.06,
+            'fill-color': '#00A651',
+            'fill-opacity': 0,
           },
         });
 
@@ -272,7 +272,7 @@ export default function MapView({
           type: 'line',
           source: 'districts',
           paint: {
-            'line-color': '#000000',
+            'line-color': '#00A651',
             'line-width': 2,
           },
         });
