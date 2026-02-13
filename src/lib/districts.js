@@ -1,4 +1,4 @@
-import fallbackDistrictsRaw from '../data/districts.geojson?raw';
+import fallbackUrl from '../data/districts.geojson?url';
 import { supabase } from './supabase';
 
 const FALLBACK_DISTRICT_ORDER = [
@@ -107,7 +107,28 @@ function normalizeFallbackDistricts(rawCollection) {
   };
 }
 
-const fallbackDistricts = normalizeFallbackDistricts(JSON.parse(fallbackDistrictsRaw));
+const EMPTY_FC = { type: 'FeatureCollection', features: [] };
+let fallbackDistrictsCache = null;
+
+async function loadFallbackDistricts() {
+  if (fallbackDistrictsCache) {
+    return fallbackDistrictsCache;
+  }
+  try {
+    const response = await fetch(fallbackUrl);
+    if (!response.ok) {
+      console.error('Fallback geojson fetch failed:', response.status);
+      return EMPTY_FC;
+    }
+    const raw = await response.json();
+    fallbackDistrictsCache = normalizeFallbackDistricts(raw);
+    return fallbackDistrictsCache;
+  } catch (err) {
+    console.error('Failed to load fallback districts:', err);
+    return EMPTY_FC;
+  }
+}
+
 const SAFE_EDIT_ACTIONS = new Set(['update', 'insert', 'soft_delete', 'restore']);
 
 function rowsToFeatureCollection(rows) {
@@ -127,19 +148,22 @@ function rowsToFeatureCollection(rows) {
 
 export async function fetchDistricts() {
   if (!supabase) {
-    return fallbackDistricts;
+    return loadFallbackDistricts();
   }
 
-  const { data, error } = await supabase
-    .from('districts')
-    .select('id,name,color,geometry,is_active')
-    .eq('is_active', true)
-    .order('name');
-  if (error || !data?.length) {
-    return fallbackDistricts;
+  try {
+    const { data, error } = await supabase
+      .from('districts')
+      .select('id,name,color,geometry,is_active')
+      .eq('is_active', true)
+      .order('name');
+    if (error || !data?.length) {
+      return loadFallbackDistricts();
+    }
+    return rowsToFeatureCollection(data);
+  } catch {
+    return loadFallbackDistricts();
   }
-
-  return rowsToFeatureCollection(data);
 }
 
 async function runDistrictEdit(action, payload) {

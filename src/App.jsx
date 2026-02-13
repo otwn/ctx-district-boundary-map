@@ -49,7 +49,11 @@ export default function App() {
 
     load();
 
-    const sub = supabase?.auth.onAuthStateChange(async () => {
+    const sub = supabase?.auth.onAuthStateChange(async (event) => {
+      // load() handles the initial session; only react to real auth changes.
+      if (event === 'INITIAL_SESSION') {
+        return;
+      }
       try {
         const sessionData = await getSessionAndRole();
         if (!alive) {
@@ -58,11 +62,7 @@ export default function App() {
         setUser(sessionData.user);
         setRole(sessionData.role);
       } catch {
-        if (!alive) {
-          return;
-        }
-        setUser(null);
-        setRole('viewer');
+        // Don't overwrite state on transient errors.
       }
     });
 
