@@ -108,6 +108,7 @@ function normalizeFallbackDistricts(rawCollection) {
 }
 
 const fallbackDistricts = normalizeFallbackDistricts(JSON.parse(fallbackDistrictsRaw));
+const SAFE_EDIT_ACTIONS = new Set(['update', 'insert', 'soft_delete', 'restore']);
 
 function rowsToFeatureCollection(rows) {
   return {
@@ -129,7 +130,11 @@ export async function fetchDistricts() {
     return fallbackDistricts;
   }
 
-  const { data, error } = await supabase.from('districts').select('id,name,color,geometry').order('name');
+  const { data, error } = await supabase
+    .from('districts')
+    .select('id,name,color,geometry,is_active')
+    .eq('is_active', true)
+    .order('name');
   if (error || !data?.length) {
     return fallbackDistricts;
   }
@@ -137,41 +142,50 @@ export async function fetchDistricts() {
   return rowsToFeatureCollection(data);
 }
 
-export async function updateDistrictBoundary(id, newGeometry, userId) {
+async function runDistrictEdit(action, payload) {
   if (!supabase) {
     throw new Error('Supabase is not configured.');
   }
 
-  const { data: current, error: currentError } = await supabase
-    .from('districts')
-    .select('geometry,name')
-    .eq('id', id)
-    .single();
-
-  if (currentError) {
-    throw new Error(currentError.message);
+  if (!SAFE_EDIT_ACTIONS.has(action)) {
+    throw new Error('Invalid district action.');
   }
 
-  const { error: updateError } = await supabase
-    .from('districts')
-    .update({ geometry: newGeometry, updated_at: new Date().toISOString() })
-    .eq('id', id);
-
-  if (updateError) {
-    throw new Error(updateError.message);
-  }
-
-  const { error: insertError } = await supabase.from('boundary_edits').insert({
-    district_id: id,
-    district_name: current.name,
-    edited_by: userId,
-    old_geometry: current.geometry,
-    new_geometry: newGeometry,
+  const { error } = await supabase.rpc('apply_district_operation', {
+    p_action: action,
+    p_district_id: payload.id ?? null,
+    p_name: payload.name ?? null,
+    p_geometry: payload.geometry ?? null,
+    p_color: payload.color ?? '#FFD700',
   });
 
-  if (insertError) {
-    throw new Error(insertError.message);
+  if (error) {
+    throw new Error(error.message);
   }
+}
+
+function toDistrictId(name) {
+  return String(name)
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+export async function updateDistrictBoundary(id, newGeometry) {
+  await runDistrictEdit('update', { id, geometry: newGeometry });
+}
+
+export async function createDistrictBoundary(name, newGeometry, color = '#FFD700') {
+  const id = toDistrictId(name);
+  if (!id) {
+    throw new Error('District name is required.');
+  }
+  await runDistrictEdit('insert', { id, name, geometry: newGeometry, color });
+}
+
+export async function softDeleteDistrict(id) {
+  await runDistrictEdit('soft_delete', { id });
 }
 
 export async function fetchEditHistory(districtId) {
@@ -181,7 +195,7 @@ export async function fetchEditHistory(districtId) {
 
   let query = supabase
     .from('boundary_edits')
-    .select('id,district_id,district_name,edited_by,edited_by_email,created_at')
+    .select('id,district_id,district_name,action,edited_by,edited_by_email,created_at')
     .order('created_at', { ascending: false })
     .limit(20);
 

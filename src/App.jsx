@@ -2,7 +2,13 @@ import { useEffect, useMemo, useState } from 'react';
 import MapView from './components/MapView';
 import Sidebar from './components/Sidebar';
 import AuthModal from './components/AuthModal';
-import { fetchDistricts, fetchEditHistory, updateDistrictBoundary } from './lib/districts';
+import {
+  createDistrictBoundary,
+  fetchDistricts,
+  fetchEditHistory,
+  softDeleteDistrict,
+  updateDistrictBoundary,
+} from './lib/districts';
 import { getSessionAndRole, signOut } from './lib/auth';
 import { supabase } from './lib/supabase';
 
@@ -17,6 +23,7 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [role, setRole] = useState('viewer');
   const isEditor = useMemo(() => role === 'editor' || role === 'admin', [role]);
+  const isAdmin = useMemo(() => role === 'admin', [role]);
 
   useEffect(() => {
     let alive = true;
@@ -26,7 +33,7 @@ export default function App() {
       const [districtData, edits, sessionData] = await Promise.all([
         fetchDistricts(),
         fetchEditHistory(),
-        getSessionAndRole(),
+        getSessionAndRole().catch(() => ({ user: null, role: 'viewer' })),
       ]);
 
       if (!alive) {
@@ -43,12 +50,20 @@ export default function App() {
     load();
 
     const sub = supabase?.auth.onAuthStateChange(async () => {
-      const sessionData = await getSessionAndRole();
-      if (!alive) {
-        return;
+      try {
+        const sessionData = await getSessionAndRole();
+        if (!alive) {
+          return;
+        }
+        setUser(sessionData.user);
+        setRole(sessionData.role);
+      } catch {
+        if (!alive) {
+          return;
+        }
+        setUser(null);
+        setRole('viewer');
       }
-      setUser(sessionData.user);
-      setRole(sessionData.role);
     });
 
     return () => {
@@ -70,7 +85,7 @@ export default function App() {
     }
 
     try {
-      await updateDistrictBoundary(districtId, geometry, user.id);
+      await updateDistrictBoundary(districtId, geometry);
       await refreshDistrictsAndHistory();
       return { ok: true, message: 'Boundary saved.' };
     } catch (error) {
@@ -78,10 +93,48 @@ export default function App() {
     }
   };
 
+  const handleDistrictCreate = async (name, geometry) => {
+    if (!user) {
+      setAuthOpen(true);
+      return { ok: false, message: 'Login required.' };
+    }
+    if (!isAdmin) {
+      return { ok: false, message: 'Only admins can add districts.' };
+    }
+    try {
+      await createDistrictBoundary(name, geometry);
+      await refreshDistrictsAndHistory();
+      return { ok: true, message: 'District created.' };
+    } catch (error) {
+      return { ok: false, message: error.message || 'Failed to create district.' };
+    }
+  };
+
+  const handleDistrictDelete = async (districtId) => {
+    if (!user) {
+      setAuthOpen(true);
+      return { ok: false, message: 'Login required.' };
+    }
+    if (!isAdmin) {
+      return { ok: false, message: 'Only admins can delete districts.' };
+    }
+    try {
+      await softDeleteDistrict(districtId);
+      setSelectedDistrictId((current) => (current === districtId ? null : current));
+      await refreshDistrictsAndHistory();
+      return { ok: true, message: 'District archived (soft delete).' };
+    } catch (error) {
+      return { ok: false, message: error.message || 'Failed to delete district.' };
+    }
+  };
+
   const handleSignOut = async () => {
-    await signOut();
-    setUser(null);
-    setRole('viewer');
+    try {
+      await signOut();
+    } finally {
+      setUser(null);
+      setRole('viewer');
+    }
   };
 
   return (
@@ -108,7 +161,10 @@ export default function App() {
           selectedDistrictId={selectedDistrictId}
           onSelectDistrict={setSelectedDistrictId}
           canEdit={isEditor}
+          canAdmin={isAdmin}
           onBoundarySave={handleBoundarySave}
+          onDistrictCreate={handleDistrictCreate}
+          onDistrictDelete={handleDistrictDelete}
           loading={loading}
         />
       </main>

@@ -168,6 +168,7 @@ body {
   border: 1px solid var(--border);
   border-radius: 10px;
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
   padding: 8px;
   z-index: 3;

@@ -36,6 +36,10 @@ export default function Sidebar({
           <option value="osm-standard">OSM Standard</option>
           <option value="osm-de">OSM DE (Clear Roads)</option>
           <option value="esri-streets">Esri Streets</option>
+          <option value="google-like-voyager">Google-like (Free)</option>
+          <option value="esri-navigation">Esri Navigation</option>
+          <option value="esri-light-gray">Esri Light Gray Canvas</option>
+          <option value="esri-imagery-hybrid">Esri Imagery Hybrid</option>
           <option value="open-topo">OpenTopoMap</option>
         </select>
       </section>
@@ -67,6 +71,7 @@ export default function Sidebar({
             history.map((entry) => (
               <li key={entry.id} className="history-item">
                 <div>{entry.district_name || entry.district_id}</div>
+                <div>Action: {entry.action || 'update'}</div>
                 <div>By: {entry.edited_by_email || entry.edited_by || 'Unknown'}</div>
                 <div className="history-time">{new Date(entry.created_at).toLocaleString()}</div>
               </li>

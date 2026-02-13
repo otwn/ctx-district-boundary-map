@@ -5,22 +5,23 @@ export async function getSessionAndRole() {
     return { user: null, role: 'viewer' };
   }
 
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
+  try {
+    const { data } = await supabase.auth.getSession();
+    const user = data?.session?.user || null;
+    if (!user) {
+      return { user: null, role: 'viewer' };
+    }
 
-  const user = session?.user || null;
-  if (!user) {
+    const { data: roleRow } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    return { user, role: roleRow?.role || 'viewer' };
+  } catch {
     return { user: null, role: 'viewer' };
   }
-
-  const { data: roleRow } = await supabase
-    .from('user_roles')
-    .select('role')
-    .eq('user_id', user.id)
-    .maybeSingle();
-
-  return { user, role: roleRow?.role || 'viewer' };
 }
 
 export async function signInWithPassword(email, password) {
