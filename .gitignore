@@ -25,3 +25,8 @@ npm-debug.log*
 
 # Netlify
 .netlify
+
+# LLM
+.cluade
+.gemini
+.codex
