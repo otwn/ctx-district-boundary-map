@@ -32,13 +32,7 @@ export default function Sidebar({
 
       <section className="section">
         <h2>Basemap</h2>
-        <select
-          id="basemap-select"
-          name="basemap"
-          className="basemap-select"
-          value={basemap}
-          onChange={(event) => onBasemapChange(event.target.value)}
-        >
+        <select className="basemap-select" value={basemap} onChange={(event) => onBasemapChange(event.target.value)}>
           <option value="osm-standard">OSM Standard</option>
           <option value="osm-de">OSM DE (Clear Roads)</option>
           <option value="esri-streets">Esri Streets</option>
