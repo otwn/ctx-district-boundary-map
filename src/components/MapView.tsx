@@ -32,7 +32,7 @@ type MapViewProps = {
   onBoundarySave: (districtId: string, geometry: DistrictGeometry) => Promise<OperationResult>;
   onDistrictCreate: (name: string, geometry: DistrictGeometry) => Promise<OperationResult>;
   onDistrictDelete: (districtId: string) => Promise<OperationResult>;
-  onDistrictRename: (districtId: string, newName: string) => Promise<OperationResult>;
+  onDistrictRename: (districtId: string, newName: string, chapterName?: string) => Promise<OperationResult>;
   loading: boolean;
 };
 
@@ -189,10 +189,18 @@ function escapeHtml(value: unknown): string {
 }
 
 function buildAttributesHtml(properties?: Record<string, unknown> | null): string {
+  const name = escapeHtml(properties?.name || 'District');
+  const chapterName = properties?.chapter_name ? escapeHtml(properties.chapter_name) : '';
+  const chapterLine = chapterName
+    ? `<div style="margin:0 0 4px 0;color:#666;font-size:0.9em;">${chapterName}</div>`
+    : '';
+  const skipKeys = new Set(['id', 'name', 'chapter_name']);
   const rows = Object.entries(properties || {})
+    .filter(([key]) => !skipKeys.has(key))
     .map(([key, value]) => `<tr><td><strong>${escapeHtml(key)}</strong></td><td>${escapeHtml(value)}</td></tr>`)
     .join('');
-  return `<div><h4 style="margin:0 0 6px 0;">${escapeHtml(properties?.name || 'District')}</h4><table>${rows}</table></div>`;
+  const table = rows ? `<table style="margin-top:4px;">${rows}</table>` : '';
+  return `<div><h4 style="margin:0 0 2px 0;">${name}</h4>${chapterLine}${table}</div>`;
 }
 
 function getFeatureCenter(feature?: DistrictFeature | null): [number, number] | null {
@@ -557,8 +565,8 @@ export default function MapView({
           setTimeout(() => setMessage(''), 2500);
           return result;
         }}
-        onRename={async (districtId, newName) => {
-          const result = await onDistrictRename(districtId, newName);
+        onRename={async (districtId, newName, chapterName) => {
+          const result = await onDistrictRename(districtId, newName, chapterName);
           setMessage(result.message);
           setTimeout(() => setMessage(''), 2500);
           return result;

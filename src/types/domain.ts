@@ -5,6 +5,7 @@ export type DistrictGeometry = Polygon | MultiPolygon;
 export type DistrictProperties = {
   id: string;
   name: string;
+  chapter_name?: string | null;
   color?: string | null;
   [key: string]: unknown;
 };

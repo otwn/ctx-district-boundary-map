@@ -35,7 +35,7 @@ type DrawControlsProps = {
   onSave: (districtId: string, geometry: DistrictGeometry) => Promise<OperationResult>;
   onCreate: (name: string, geometry: DistrictGeometry) => Promise<OperationResult>;
   onDelete: (districtId: string) => Promise<OperationResult>;
-  onRename: (districtId: string, newName: string) => Promise<OperationResult>;
+  onRename: (districtId: string, newName: string, chapterName?: string) => Promise<OperationResult>;
 };
 
 export default function DrawControls({
@@ -225,12 +225,25 @@ export default function DrawControls({
 
     const currentDistrict = districts.features.find((feature) => feature.properties?.id === selectedDistrictId);
     const currentName = currentDistrict?.properties?.name || '';
+    const currentChapter = (currentDistrict?.properties?.chapter_name as string) || '';
+
     const newName = window.prompt('Enter new district name', currentName);
-    if (!newName || newName.trim() === currentName) {
+    if (newName === null) {
       return;
     }
 
-    await onRename(selectedDistrictId, newName.trim());
+    const newChapter = window.prompt('Enter chapter name (optional)', currentChapter);
+    if (newChapter === null) {
+      return;
+    }
+
+    const nameChanged = newName.trim() !== currentName;
+    const chapterChanged = newChapter.trim() !== currentChapter;
+    if (!nameChanged && !chapterChanged) {
+      return;
+    }
+
+    await onRename(selectedDistrictId, newName.trim(), newChapter.trim() || undefined);
   };
 
   if (!canEdit) {

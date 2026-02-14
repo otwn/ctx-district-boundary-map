@@ -71,6 +71,7 @@ const DISTRICT_ID_BY_NAME: Record<(typeof FALLBACK_DISTRICT_ORDER)[number], stri
 type DistrictRow = {
   id: string;
   name: string;
+  chapter_name: string | null;
   color: string | null;
   geometry: Geometry | string | null;
   is_active: boolean;
@@ -221,6 +222,7 @@ function rowsToFeatureCollection(rows: DistrictRow[]): DistrictFeatureCollection
         properties: {
           id: row.id,
           name: normalizeDistrictName(row.name),
+          chapter_name: row.chapter_name ?? null,
           color: row.color,
         },
         geometry,
@@ -253,7 +255,7 @@ export async function fetchDistrictsWithMeta(): Promise<DistrictFetchMeta> {
     }>(
       supabase
         .from('districts')
-        .select('id,name,color,geometry,is_active')
+        .select('id,name,chapter_name,color,geometry,is_active')
         .eq('is_active', true)
         .order('name') as unknown as Promise<{
         data: DistrictRow[] | null;
@@ -291,7 +293,7 @@ export async function fetchDistrictsWithMeta(): Promise<DistrictFetchMeta> {
 
 async function runDistrictEdit(
   action: 'update' | 'insert' | 'soft_delete' | 'restore',
-  payload: { id?: string; name?: string; geometry?: DistrictGeometry | null; color?: string },
+  payload: { id?: string; name?: string; chapter_name?: string; geometry?: DistrictGeometry | null; color?: string },
 ): Promise<void> {
   if (!supabase) {
     throw new Error('Supabase is not configured.');
@@ -307,6 +309,7 @@ async function runDistrictEdit(
     p_name: payload.name ?? null,
     p_geometry: payload.geometry ?? null,
     p_color: payload.color ?? '#FFD700',
+    p_chapter_name: payload.chapter_name ?? null,
   });
 
   if (error) {
@@ -338,12 +341,16 @@ export async function createDistrictBoundary(
   await runDistrictEdit('insert', { id, name, geometry: newGeometry, color });
 }
 
-export async function renameDistrict(id: string, newName: string): Promise<void> {
+export async function renameDistrict(id: string, newName: string, chapterName?: string): Promise<void> {
   const trimmed = newName.trim();
   if (!trimmed) {
     throw new Error('District name is required.');
   }
-  await runDistrictEdit('update', { id, name: trimmed });
+  await runDistrictEdit('update', {
+    id,
+    name: trimmed,
+    chapter_name: chapterName?.trim() || undefined,
+  });
 }
 
 export async function softDeleteDistrict(id: string): Promise<void> {

@@ -239,7 +239,7 @@ export default function App() {
     }
   };
 
-  const handleDistrictRename = async (districtId: string, newName: string): Promise<OperationResult> => {
+  const handleDistrictRename = async (districtId: string, newName: string, chapterName?: string): Promise<OperationResult> => {
     if (!user) {
       setAuthOpen(true);
       return { ok: false, message: 'Login required.' };
@@ -248,7 +248,7 @@ export default function App() {
       return { ok: false, message: 'Only editors can rename districts.' };
     }
     try {
-      await renameDistrict(districtId, newName);
+      await renameDistrict(districtId, newName, chapterName);
       await refreshDistrictsAndHistory();
       return { ok: true, message: 'District renamed.' };
     } catch (error) {
