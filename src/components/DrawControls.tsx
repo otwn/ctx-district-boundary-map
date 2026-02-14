@@ -1,5 +1,41 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
+import type maplibregl from 'maplibre-gl';
+import type { DistrictFeatureCollection, DistrictGeometry, OperationResult } from '../types/domain';
+// @ts-expect-error library ships no declaration for this subpath import.
 import { createGeomanInstance } from '@geoman-io/maplibre-geoman-free/dist/maplibre-geoman.es.js';
+
+type DrawMode = 'idle' | 'edit' | 'create' | 'create-pending' | 'simple_select';
+
+type GeomanApi = {
+  disableDraw: () => void;
+  disableGlobalEditMode: () => void;
+  enableGlobalEditMode: () => void;
+  enableDraw: (shape: 'polygon') => void;
+  destroy: (options: { removeSources: boolean }) => Promise<void>;
+  features: {
+    deleteAll: () => void;
+    importGeoJsonFeature: (feature: {
+      type: 'Feature';
+      properties: Record<string, unknown>;
+      geometry: DistrictGeometry;
+    }) => unknown;
+    exportGeoJson: () => {
+      features?: Array<{ geometry?: DistrictGeometry | null }>;
+    };
+  };
+};
+
+type DrawControlsProps = {
+  mapRef: RefObject<maplibregl.Map | null>;
+  mapReady: boolean;
+  districts: DistrictFeatureCollection;
+  selectedDistrictId: string | null;
+  canEdit: boolean;
+  canAdmin: boolean;
+  onSave: (districtId: string, geometry: DistrictGeometry) => Promise<OperationResult>;
+  onCreate: (name: string, geometry: DistrictGeometry) => Promise<OperationResult>;
+  onDelete: (districtId: string) => Promise<OperationResult>;
+};
 
 export default function DrawControls({
   mapRef,
@@ -11,12 +47,12 @@ export default function DrawControls({
   onSave,
   onCreate,
   onDelete,
-}) {
-  const geomanRef = useRef(null);
-  const modeRef = useRef('idle');
+}: DrawControlsProps) {
+  const geomanRef = useRef<GeomanApi | null>(null);
+  const modeRef = useRef<DrawMode>('idle');
   const [editing, setEditing] = useState(false);
 
-  const setMode = (mode) => {
+  const setMode = (mode: DrawMode) => {
     modeRef.current = mode;
     window.__districtDrawMode = mode;
   };
@@ -28,7 +64,7 @@ export default function DrawControls({
     }
 
     let cancelled = false;
-    const onCreate = () => {
+    const onCreateEvent = () => {
       const geoman = geomanRef.current;
       if (!geoman || modeRef.current !== 'create-pending') {
         return;
@@ -38,13 +74,13 @@ export default function DrawControls({
       setEditing(true);
     };
 
-    (async () => {
+    void (async () => {
       try {
-        const geoman = await createGeomanInstance(map, {
+        const geoman = (await createGeomanInstance(map, {
           settings: {
             controlsUiEnabledByDefault: false,
           },
-        });
+        })) as GeomanApi;
 
         if (cancelled || !geoman) {
           await geoman?.destroy({ removeSources: false });
@@ -53,7 +89,7 @@ export default function DrawControls({
 
         geomanRef.current = geoman;
         setMode('idle');
-        map.on('gm:create', onCreate);
+        map.on('gm:create', onCreateEvent);
       } catch (error) {
         console.error('Geoman setup failed:', error);
       }
@@ -61,13 +97,13 @@ export default function DrawControls({
 
     return () => {
       cancelled = true;
-      map.off('gm:create', onCreate);
+      map.off('gm:create', onCreateEvent);
       const geoman = geomanRef.current;
       geomanRef.current = null;
       setMode('idle');
       setEditing(false);
       if (geoman) {
-        geoman.destroy({ removeSources: false }).catch(() => {});
+        void geoman.destroy({ removeSources: false }).catch(() => {});
       }
     };
   }, [canEdit, mapReady, mapRef]);
@@ -138,23 +174,24 @@ export default function DrawControls({
     const feature = collection?.features?.find(
       (entry) => entry?.geometry?.type === 'Polygon' || entry?.geometry?.type === 'MultiPolygon',
     );
-    if (!feature?.geometry) {
+    const geometry = feature?.geometry;
+    if (!geometry) {
       return;
     }
 
-    let result;
+    let result: OperationResult;
     if (modeRef.current === 'create') {
       const nameInput = window.prompt('Enter new district name');
       const name = nameInput?.trim();
       if (!name) {
         return;
       }
-      result = await onCreate(name, feature.geometry);
+      result = await onCreate(name, geometry);
     } else {
       if (!selectedDistrictId) {
         return;
       }
-      result = await onSave(selectedDistrictId, feature.geometry);
+      result = await onSave(selectedDistrictId, geometry);
     }
 
     if (!result.ok) {
@@ -185,16 +222,22 @@ export default function DrawControls({
 
   return (
     <div className="draw-controls">
-      <button onClick={startEditing} disabled={!selectedDistrictId || editing}>Edit Selected</button>
+      <button onClick={startEditing} disabled={!selectedDistrictId || editing}>
+        Edit Selected
+      </button>
       {canAdmin ? (
-        <button onClick={startCreate} disabled={editing}>Add Polygon</button>
+        <button onClick={startCreate} disabled={editing}>
+          Add Polygon
+        </button>
       ) : null}
-      <button className="primary" onClick={saveEditing} disabled={!editing || modeRef.current === 'create-pending'}>
+      <button className="primary" onClick={() => void saveEditing()} disabled={!editing || modeRef.current === 'create-pending'}>
         Save
       </button>
-      <button className="danger" onClick={cancelEditing} disabled={!editing}>Cancel</button>
+      <button className="danger" onClick={cancelEditing} disabled={!editing}>
+        Cancel
+      </button>
       {canAdmin ? (
-        <button className="danger" onClick={deleteSelected} disabled={!selectedDistrictId || editing}>
+        <button className="danger" onClick={() => void deleteSelected()} disabled={!selectedDistrictId || editing}>
           Delete Selected
         </button>
       ) : null}

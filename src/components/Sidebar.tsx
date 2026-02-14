@@ -1,3 +1,27 @@
+import type { User } from '@supabase/supabase-js';
+import type {
+  AppRole,
+  BoundaryEdit,
+  DistrictFeature,
+  SystemAuthStatus,
+  SystemSupabaseStatus,
+} from '../types/domain';
+
+type SidebarProps = {
+  districts: DistrictFeature[];
+  selectedDistrictId: string | null;
+  onSelectDistrict: (districtId: string | null) => void;
+  basemap: string;
+  onBasemapChange: (basemap: string) => void;
+  history: BoundaryEdit[];
+  user: User | null;
+  role: AppRole;
+  supabaseStatus: SystemSupabaseStatus;
+  authStatus: SystemAuthStatus;
+  onLogin: () => void;
+  onLogout: () => void;
+};
+
 export default function Sidebar({
   districts,
   selectedDistrictId,
@@ -7,15 +31,43 @@ export default function Sidebar({
   history,
   user,
   role,
+  supabaseStatus,
+  authStatus,
   onLogin,
   onLogout,
-}) {
+}: SidebarProps) {
+  const supabaseLabel =
+    supabaseStatus.state === 'connected' ? 'Connected' : supabaseStatus.state === 'checking' ? 'Checking' : 'Fallback';
+
+  const authLabel =
+    authStatus.state === 'authenticated'
+      ? 'Authenticated'
+      : authStatus.state === 'auth_failed'
+        ? 'Auth Failed'
+        : 'Not Logged In';
+
   return (
     <aside className="sidebar">
       <div className="brand">
         <h1>CTX District Map</h1>
         <p>Austin-area district boundaries</p>
       </div>
+
+      <section className="section">
+        <h2>System Status</h2>
+        <div className="status-grid">
+          <div className="status-item">
+            <strong>Supabase</strong>
+            <div className={`status-chip ${supabaseStatus.state}`}>{supabaseLabel}</div>
+            {supabaseStatus.message ? <div className="status-detail">{supabaseStatus.message}</div> : null}
+          </div>
+          <div className="status-item">
+            <strong>Auth</strong>
+            <div className={`status-chip ${authStatus.state}`}>{authLabel}</div>
+            {authStatus.message ? <div className="status-detail">{authStatus.message}</div> : null}
+          </div>
+        </div>
+      </section>
 
       <section className="section">
         <h2>Account</h2>
@@ -50,12 +102,12 @@ export default function Sidebar({
           {districts.map((feature) => {
             const id = feature.properties?.id;
             const name = feature.properties?.name;
+            if (!id) {
+              return null;
+            }
             return (
               <li key={id}>
-                <button
-                  className={selectedDistrictId === id ? 'active' : ''}
-                  onClick={() => onSelectDistrict(id)}
-                >
+                <button className={selectedDistrictId === id ? 'active' : ''} onClick={() => onSelectDistrict(id)}>
                   {name}
                 </button>
               </li>

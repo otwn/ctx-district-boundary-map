@@ -1,9 +1,41 @@
 import { useEffect, useRef, useState } from 'react';
-import maplibregl from 'maplibre-gl';
+import maplibregl, { type GeoJSONSource, type LayerSpecification, type RasterSourceSpecification } from 'maplibre-gl';
 import DrawControls from './DrawControls';
+import type { DistrictFeature, DistrictFeatureCollection, DistrictGeometry, OperationResult, ViewState } from '../types/domain';
 
-const EMPTY_FC = { type: 'FeatureCollection', features: [] };
-const BASEMAPS = {
+type BasemapKey =
+  | 'osm-standard'
+  | 'osm-de'
+  | 'esri-streets'
+  | 'google-like-voyager'
+  | 'esri-navigation'
+  | 'esri-light-gray'
+  | 'esri-imagery-hybrid'
+  | 'open-topo';
+
+type BasemapConfig = {
+  sources: Record<string, RasterSourceSpecification>;
+  layers: LayerSpecification[];
+};
+
+type MapViewProps = {
+  basemap: string;
+  initialView: ViewState;
+  onViewChange: (view: ViewState) => void;
+  districts: DistrictFeatureCollection;
+  selectedDistrictId: string | null;
+  onSelectDistrict: (districtId: string) => void;
+  canEdit: boolean;
+  canAdmin: boolean;
+  onBoundarySave: (districtId: string, geometry: DistrictGeometry) => Promise<OperationResult>;
+  onDistrictCreate: (name: string, geometry: DistrictGeometry) => Promise<OperationResult>;
+  onDistrictDelete: (districtId: string) => Promise<OperationResult>;
+  loading: boolean;
+};
+
+const EMPTY_FC: DistrictFeatureCollection = { type: 'FeatureCollection', features: [] };
+
+const BASEMAPS: Record<BasemapKey, BasemapConfig> = {
   'osm-standard': {
     sources: {
       base: {
@@ -144,7 +176,7 @@ const BASEMAPS = {
   },
 };
 
-function escapeHtml(value) {
+function escapeHtml(value: unknown): string {
   return String(value ?? '')
     .replaceAll('&', '&amp;')
     .replaceAll('<', '&lt;')
@@ -153,18 +185,30 @@ function escapeHtml(value) {
     .replaceAll("'", '&#39;');
 }
 
-function buildAttributesHtml(properties) {
+function buildAttributesHtml(properties?: Record<string, unknown> | null): string {
   const rows = Object.entries(properties || {})
     .map(([key, value]) => `<tr><td><strong>${escapeHtml(key)}</strong></td><td>${escapeHtml(value)}</td></tr>`)
     .join('');
   return `<div><h4 style="margin:0 0 6px 0;">${escapeHtml(properties?.name || 'District')}</h4><table>${rows}</table></div>`;
 }
 
-function getFeatureCenter(feature) {
-  const ring = feature?.geometry?.coordinates?.[0] || [];
-  if (!ring.length) {
+function getFeatureCenter(feature?: DistrictFeature | null): [number, number] | null {
+  if (!feature) {
     return null;
   }
+
+  const geometry = feature.geometry;
+  const ring =
+    geometry.type === 'Polygon'
+      ? geometry.coordinates[0]
+      : geometry.type === 'MultiPolygon'
+        ? geometry.coordinates[0]?.[0]
+        : undefined;
+
+  if (!ring?.length) {
+    return null;
+  }
+
   let lon = 0;
   let lat = 0;
   ring.forEach(([x, y]) => {
@@ -174,13 +218,14 @@ function getFeatureCenter(feature) {
   return [lon / ring.length, lat / ring.length];
 }
 
-function firstDrawLayerId(map) {
+function firstDrawLayerId(map: maplibregl.Map): string | undefined {
   return map
     .getStyle()
-    ?.layers?.find((layer) => layer.id.startsWith('gl-draw-'))?.id;
+    ?.layers?.find((layer) => layer.id.startsWith('gl-draw-'))
+    ?.id;
 }
 
-function moveDistrictLayersBelowDraw(map) {
+function moveDistrictLayersBelowDraw(map: maplibregl.Map): void {
   const drawLayerId = firstDrawLayerId(map);
   if (!drawLayerId) {
     return;
@@ -192,9 +237,19 @@ function moveDistrictLayersBelowDraw(map) {
   });
 }
 
-function isDrawInteractionActive() {
+function isDrawInteractionActive(): boolean {
   const mode = window.__districtDrawMode;
-  return mode && mode !== 'idle' && mode !== 'simple_select';
+  return Boolean(mode && mode !== 'idle' && mode !== 'simple_select');
+}
+
+function getFeatureId(feature: maplibregl.MapGeoJSONFeature | undefined): string | null {
+  const id = feature?.properties?.id;
+  return typeof id === 'string' ? id : null;
+}
+
+function getFeatureName(feature: maplibregl.MapGeoJSONFeature | undefined): string {
+  const name = feature?.properties?.name;
+  return typeof name === 'string' ? name : 'District';
 }
 
 export default function MapView({
@@ -210,17 +265,17 @@ export default function MapView({
   onDistrictCreate,
   onDistrictDelete,
   loading,
-}) {
-  const mapRef = useRef(null);
-  const mapNodeRef = useRef(null);
+}: MapViewProps) {
+  const mapRef = useRef<maplibregl.Map | null>(null);
+  const mapNodeRef = useRef<HTMLDivElement | null>(null);
   const districtsRef = useRef(districts);
   const canEditRef = useRef(canEdit);
-  const hoverPopupRef = useRef(null);
-  const clickPopupRef = useRef(null);
+  const hoverPopupRef = useRef<maplibregl.Popup | null>(null);
+  const clickPopupRef = useRef<maplibregl.Popup | null>(null);
   const [mapReady, setMapReady] = useState(false);
   const [message, setMessage] = useState('');
 
-  const basemapConfig = BASEMAPS[basemap] || BASEMAPS['osm-standard'];
+  const basemapConfig = BASEMAPS[(basemap as BasemapKey) || 'osm-standard'] || BASEMAPS['osm-standard'];
 
   useEffect(() => {
     districtsRef.current = districts;
@@ -230,7 +285,6 @@ export default function MapView({
     canEditRef.current = canEdit;
   }, [canEdit]);
 
-  // One-time map initialization. Basemap changes remount the component via key={basemap}.
   useEffect(() => {
     if (!mapNodeRef.current) {
       return;
@@ -304,7 +358,7 @@ export default function MapView({
           return;
         }
         const feature = event.features?.[0];
-        const id = feature?.properties?.id;
+        const id = getFeatureId(feature);
         if (id) {
           onSelectDistrict(id);
         }
@@ -314,7 +368,7 @@ export default function MapView({
         }
         clickPopupRef.current = new maplibregl.Popup({ closeButton: true, closeOnClick: true, maxWidth: '320px' })
           .setLngLat(event.lngLat)
-          .setHTML(buildAttributesHtml(feature?.properties || {}))
+          .setHTML(buildAttributesHtml((feature?.properties as Record<string, unknown> | undefined) || {}))
           .addTo(map);
       });
 
@@ -332,7 +386,7 @@ export default function MapView({
           }
           return;
         }
-        const name = event.features?.[0]?.properties?.name || 'District';
+        const name = getFeatureName(event.features?.[0]);
         if (!hoverPopupRef.current) {
           hoverPopupRef.current = new maplibregl.Popup({
             closeButton: false,
@@ -380,7 +434,6 @@ export default function MapView({
       mapRef.current = null;
       setMapReady(false);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -391,8 +444,8 @@ export default function MapView({
 
     const syncData = () => {
       const source = map.getSource('districts');
-      if (source) {
-        source.setData(districts || EMPTY_FC);
+      if (source && 'setData' in source) {
+        (source as GeoJSONSource).setData(districts || EMPTY_FC);
       }
       if (map.getLayer('district-outline')) {
         map.setPaintProperty('district-outline', 'line-width', [
@@ -407,7 +460,7 @@ export default function MapView({
     if (map.isStyleLoaded()) {
       syncData();
     }
-    // Also sync after load fires, in case the source wasn't ready yet.
+
     map.on('load', syncData);
     return () => {
       map.off('load', syncData);

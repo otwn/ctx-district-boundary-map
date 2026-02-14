@@ -1,12 +1,21 @@
+import type { User } from '@supabase/supabase-js';
 import { supabase } from './supabase';
+import type { AppRole } from '../types/domain';
 
-export async function getSessionAndRole() {
+type AuthResult = { ok: true } | { ok: false; message: string };
+
+type SessionRoleResult = {
+  user: User | null;
+  role: AppRole;
+};
+
+export async function getSessionAndRole(): Promise<SessionRoleResult> {
   if (!supabase) {
     return { user: null, role: 'viewer' };
   }
 
   const { data } = await supabase.auth.getSession();
-  const user = data?.session?.user || null;
+  const user = data?.session?.user ?? null;
   if (!user) {
     return { user: null, role: 'viewer' };
   }
@@ -15,17 +24,16 @@ export async function getSessionAndRole() {
     .from('user_roles')
     .select('role')
     .eq('user_id', user.id)
-    .maybeSingle();
+    .maybeSingle<{ role: AppRole | null }>();
 
   if (error) {
-    // Auth succeeded but role query failed — still return the user.
     return { user, role: 'viewer' };
   }
 
   return { user, role: roleRow?.role || 'viewer' };
 }
 
-export async function signInWithPassword(email, password) {
+export async function signInWithPassword(email: string, password: string): Promise<AuthResult> {
   if (!supabase) {
     return { ok: false, message: 'Supabase is not configured.' };
   }
@@ -47,7 +55,7 @@ export async function signInWithPassword(email, password) {
   return { ok: true };
 }
 
-export async function signUpWithPassword(email, password) {
+export async function signUpWithPassword(email: string, password: string): Promise<AuthResult> {
   if (!supabase) {
     return { ok: false, message: 'Supabase is not configured.' };
   }
@@ -69,7 +77,7 @@ export async function signUpWithPassword(email, password) {
   return { ok: true };
 }
 
-export async function signOut() {
+export async function signOut(): Promise<void> {
   if (!supabase) {
     return;
   }

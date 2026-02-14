@@ -60,6 +60,53 @@ body {
   letter-spacing: 0.02em;
 }
 
+.status-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.status-item {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.status-chip {
+  display: inline-flex;
+  margin-top: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.status-chip.connected,
+.status-chip.authenticated {
+  background: rgba(46, 196, 107, 0.2);
+  border-color: rgba(46, 196, 107, 0.6);
+  color: #89f1b5;
+}
+
+.status-chip.fallback,
+.status-chip.auth_failed {
+  background: rgba(255, 153, 51, 0.2);
+  border-color: rgba(255, 153, 51, 0.6);
+  color: #ffd095;
+}
+
+.status-chip.not_logged_in,
+.status-chip.checking {
+  color: #c8d5e2;
+}
+
+.status-detail {
+  margin-top: 6px;
+  font-size: 0.82rem;
+  color: #b8c2cf;
+  word-break: break-word;
+}
+
 .district-list {
   margin: 0;
   padding: 0;
