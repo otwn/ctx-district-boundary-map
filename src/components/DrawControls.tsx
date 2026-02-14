@@ -35,6 +35,7 @@ type DrawControlsProps = {
   onSave: (districtId: string, geometry: DistrictGeometry) => Promise<OperationResult>;
   onCreate: (name: string, geometry: DistrictGeometry) => Promise<OperationResult>;
   onDelete: (districtId: string) => Promise<OperationResult>;
+  onRename: (districtId: string, newName: string, chapterName?: string) => Promise<OperationResult>;
 };
 
 export default function DrawControls({
@@ -47,6 +48,7 @@ export default function DrawControls({
   onSave,
   onCreate,
   onDelete,
+  onRename,
 }: DrawControlsProps) {
   const geomanRef = useRef<GeomanApi | null>(null);
   const modeRef = useRef<DrawMode>('idle');
@@ -216,26 +218,63 @@ export default function DrawControls({
     await onDelete(selectedDistrictId);
   };
 
+  const renameSelected = async () => {
+    if (!selectedDistrictId || editing) {
+      return;
+    }
+
+    const currentDistrict = districts.features.find((feature) => feature.properties?.id === selectedDistrictId);
+    const currentName = currentDistrict?.properties?.name || '';
+    const currentChapter = (currentDistrict?.properties?.chapter_name as string) || '';
+
+    const newName = window.prompt('Enter new district name', currentName);
+    if (newName === null) {
+      return;
+    }
+
+    const newChapter = window.prompt('Enter chapter name (optional)', currentChapter);
+    if (newChapter === null) {
+      return;
+    }
+
+    const nameChanged = newName.trim() !== currentName;
+    const chapterChanged = newChapter.trim() !== currentChapter;
+    if (!nameChanged && !chapterChanged) {
+      return;
+    }
+
+    await onRename(selectedDistrictId, newName.trim(), newChapter.trim() || undefined);
+  };
+
   if (!canEdit) {
     return null;
   }
+
+  const isActive = editing || modeRef.current === 'create-pending';
 
   return (
     <div className="draw-controls">
       <button onClick={startEditing} disabled={!selectedDistrictId || editing}>
         Edit Selected
       </button>
+      <button onClick={() => void renameSelected()} disabled={!selectedDistrictId || editing}>
+        Rename
+      </button>
       {canAdmin ? (
         <button onClick={startCreate} disabled={editing}>
           Add Polygon
         </button>
       ) : null}
-      <button className="primary" onClick={() => void saveEditing()} disabled={!editing || modeRef.current === 'create-pending'}>
-        Save
-      </button>
-      <button className="danger" onClick={cancelEditing} disabled={!editing}>
-        Cancel
-      </button>
+      {isActive ? (
+        <>
+          <button className="primary" onClick={() => void saveEditing()} disabled={!editing}>
+            Save
+          </button>
+          <button className="danger" onClick={cancelEditing}>
+            Cancel
+          </button>
+        </>
+      ) : null}
       {canAdmin ? (
         <button className="danger" onClick={() => void deleteSelected()} disabled={!selectedDistrictId || editing}>
           Delete Selected

@@ -1,6 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import maplibregl, { type GeoJSONSource, type LayerSpecification, type RasterSourceSpecification } from 'maplibre-gl';
+import AddressSearch from './AddressSearch';
 import DrawControls from './DrawControls';
+import { findDistrictAtPoint } from '../lib/pointInPolygon';
 import type { DistrictFeature, DistrictFeatureCollection, DistrictGeometry, OperationResult, ViewState } from '../types/domain';
 
 type BasemapKey =
@@ -30,6 +32,7 @@ type MapViewProps = {
   onBoundarySave: (districtId: string, geometry: DistrictGeometry) => Promise<OperationResult>;
   onDistrictCreate: (name: string, geometry: DistrictGeometry) => Promise<OperationResult>;
   onDistrictDelete: (districtId: string) => Promise<OperationResult>;
+  onDistrictRename: (districtId: string, newName: string, chapterName?: string) => Promise<OperationResult>;
   loading: boolean;
 };
 
@@ -186,10 +189,18 @@ function escapeHtml(value: unknown): string {
 }
 
 function buildAttributesHtml(properties?: Record<string, unknown> | null): string {
+  const name = escapeHtml(properties?.name || 'District');
+  const chapterName = properties?.chapter_name ? escapeHtml(properties.chapter_name) : '';
+  const chapterLine = chapterName
+    ? `<div style="margin:0 0 4px 0;color:#666;font-size:0.9em;">${chapterName}</div>`
+    : '';
+  const skipKeys = new Set(['id', 'name', 'chapter_name']);
   const rows = Object.entries(properties || {})
+    .filter(([key]) => !skipKeys.has(key))
     .map(([key, value]) => `<tr><td><strong>${escapeHtml(key)}</strong></td><td>${escapeHtml(value)}</td></tr>`)
     .join('');
-  return `<div><h4 style="margin:0 0 6px 0;">${escapeHtml(properties?.name || 'District')}</h4><table>${rows}</table></div>`;
+  const table = rows ? `<table style="margin-top:4px;">${rows}</table>` : '';
+  return `<div><h4 style="margin:0 0 2px 0;">${name}</h4>${chapterLine}${table}</div>`;
 }
 
 function getFeatureCenter(feature?: DistrictFeature | null): [number, number] | null {
@@ -264,6 +275,7 @@ export default function MapView({
   onBoundarySave,
   onDistrictCreate,
   onDistrictDelete,
+  onDistrictRename,
   loading,
 }: MapViewProps) {
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -272,8 +284,11 @@ export default function MapView({
   const canEditRef = useRef(canEdit);
   const hoverPopupRef = useRef<maplibregl.Popup | null>(null);
   const clickPopupRef = useRef<maplibregl.Popup | null>(null);
+  const searchMarkerRef = useRef<maplibregl.Marker | null>(null);
+  const searchPopupRef = useRef<maplibregl.Popup | null>(null);
   const [mapReady, setMapReady] = useState(false);
   const [message, setMessage] = useState('');
+  const [searchResult, setSearchResult] = useState<string | null>(null);
 
   const basemapConfig = BASEMAPS[(basemap as BasemapKey) || 'osm-standard'] || BASEMAPS['osm-standard'];
 
@@ -295,8 +310,41 @@ export default function MapView({
       style: {
         version: 8,
         glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
-        sources: basemapConfig.sources,
-        layers: basemapConfig.layers,
+        sources: {
+          ...basemapConfig.sources,
+          districts: { type: 'geojson', data: districtsRef.current || EMPTY_FC },
+        },
+        layers: [
+          ...basemapConfig.layers,
+          {
+            id: 'district-fill',
+            type: 'fill',
+            source: 'districts',
+            paint: { 'fill-color': '#00A651', 'fill-opacity': 0 },
+          } as LayerSpecification,
+          {
+            id: 'district-outline',
+            type: 'line',
+            source: 'districts',
+            paint: { 'line-color': '#00A651', 'line-width': 3 },
+          } as LayerSpecification,
+          {
+            id: 'district-label',
+            type: 'symbol',
+            source: 'districts',
+            layout: {
+              'text-field': ['get', 'name'],
+              'text-size': 12,
+              'text-font': ['Noto Sans Regular'],
+              'text-allow-overlap': false,
+            },
+            paint: {
+              'text-color': '#ffffff',
+              'text-halo-color': 'rgba(0,0,0,0.8)',
+              'text-halo-width': 1.2,
+            },
+          } as LayerSpecification,
+        ],
       },
       center: initialView?.center || [-97.74, 30.28],
       zoom: initialView?.zoom ?? 9,
@@ -309,45 +357,6 @@ export default function MapView({
 
     map.on('load', () => {
       try {
-        map.addSource('districts', { type: 'geojson', data: districtsRef.current || EMPTY_FC });
-
-        map.addLayer({
-          id: 'district-fill',
-          type: 'fill',
-          source: 'districts',
-          paint: {
-            'fill-color': '#00A651',
-            'fill-opacity': 0,
-          },
-        });
-
-        map.addLayer({
-          id: 'district-outline',
-          type: 'line',
-          source: 'districts',
-          paint: {
-            'line-color': '#00A651',
-            'line-width': 3,
-          },
-        });
-
-        map.addLayer({
-          id: 'district-label',
-          type: 'symbol',
-          source: 'districts',
-          layout: {
-            'text-field': ['get', 'name'],
-            'text-size': 12,
-            'text-font': ['Noto Sans Regular'],
-            'text-allow-overlap': false,
-          },
-          paint: {
-            'text-color': '#ffffff',
-            'text-halo-color': 'rgba(0,0,0,0.8)',
-            'text-halo-width': 1.2,
-          },
-        });
-
         moveDistrictLayersBelowDraw(map);
       } catch (err) {
         console.error('District layer setup failed:', err);
@@ -430,6 +439,14 @@ export default function MapView({
         clickPopupRef.current.remove();
         clickPopupRef.current = null;
       }
+      if (searchMarkerRef.current) {
+        searchMarkerRef.current.remove();
+        searchMarkerRef.current = null;
+      }
+      if (searchPopupRef.current) {
+        searchPopupRef.current.remove();
+        searchPopupRef.current = null;
+      }
       map.remove();
       mapRef.current = null;
       setMapReady(false);
@@ -467,6 +484,42 @@ export default function MapView({
     };
   }, [districts, selectedDistrictId]);
 
+  const handleSearchResult = useCallback(
+    (result: { lat: number; lon: number }) => {
+      const map = mapRef.current;
+      if (!map) {
+        return;
+      }
+
+      // Remove previous marker/popup
+      if (searchMarkerRef.current) {
+        searchMarkerRef.current.remove();
+      }
+      if (searchPopupRef.current) {
+        searchPopupRef.current.remove();
+      }
+
+      const lngLat: [number, number] = [result.lon, result.lat];
+      const district = findDistrictAtPoint(lngLat, districtsRef.current);
+      const districtLabel = district ? district.properties.name : 'No district';
+      setSearchResult(districtLabel);
+
+      const popup = new maplibregl.Popup({ offset: 25, closeButton: true, closeOnClick: false })
+        .setHTML(`<strong>${escapeHtml(districtLabel)}</strong>`);
+      searchPopupRef.current = popup;
+
+      const marker = new maplibregl.Marker({ color: '#ffd700' })
+        .setLngLat(lngLat)
+        .setPopup(popup)
+        .addTo(map);
+      marker.togglePopup();
+      searchMarkerRef.current = marker;
+
+      map.flyTo({ center: lngLat, zoom: Math.max(map.getZoom(), 13), essential: true });
+    },
+    [],
+  );
+
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !selectedDistrictId) {
@@ -483,6 +536,8 @@ export default function MapView({
   return (
     <>
       <div ref={mapNodeRef} className="map-container" />
+      <AddressSearch onResult={handleSearchResult} />
+      {searchResult ? <div className="search-result">District: {searchResult}</div> : null}
       {loading ? <div className="map-loading">Loading boundaries...</div> : null}
       {message ? <div className="map-message">{message}</div> : null}
       <DrawControls
@@ -506,6 +561,12 @@ export default function MapView({
         }}
         onDelete={async (districtId) => {
           const result = await onDistrictDelete(districtId);
+          setMessage(result.message);
+          setTimeout(() => setMessage(''), 2500);
+          return result;
+        }}
+        onRename={async (districtId, newName, chapterName) => {
+          const result = await onDistrictRename(districtId, newName, chapterName);
           setMessage(result.message);
           setTimeout(() => setMessage(''), 2500);
           return result;

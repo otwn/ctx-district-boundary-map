@@ -11,6 +11,7 @@ create table if not exists public.districts (
   id text primary key,
   name text not null unique,
   color text not null default '#FFD700',
+  chapter_name text,
   geometry jsonb not null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -19,6 +20,7 @@ create table if not exists public.districts (
 alter table public.districts add column if not exists is_active boolean not null default true;
 alter table public.districts add column if not exists deleted_at timestamptz;
 alter table public.districts add column if not exists deleted_by uuid references auth.users(id) on delete set null;
+alter table public.districts add column if not exists chapter_name text;
 
 create index if not exists idx_districts_active on public.districts(is_active);
 
@@ -138,7 +140,8 @@ create or replace function public.apply_district_operation(
   p_district_id text,
   p_name text,
   p_geometry jsonb,
-  p_color text default '#FFD700'
+  p_color text default '#FFD700',
+  p_chapter_name text default null
 )
 returns table (district_id text, district_name text, action text)
 language plpgsql
@@ -217,14 +220,17 @@ begin
       raise exception 'District % is archived and cannot be edited.', p_district_id;
     end if;
 
-    cleaned_geometry := public.clean_district_geometry(p_geometry, p_district_id);
+    cleaned_geometry := public.clean_district_geometry(
+      coalesce(p_geometry, existing.geometry), p_district_id
+    );
 
     update public.districts
     set
       geometry = cleaned_geometry,
       updated_at = now(),
       name = coalesce(nullif(trim(p_name), ''), existing.name),
-      color = coalesce(p_color, existing.color)
+      color = coalesce(p_color, existing.color),
+      chapter_name = coalesce(nullif(trim(p_chapter_name), ''), existing.chapter_name)
     where id = p_district_id;
 
     insert into public.boundary_edits (

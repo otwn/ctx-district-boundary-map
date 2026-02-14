@@ -2,11 +2,13 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { User } from '@supabase/supabase-js';
 import MapView from './components/MapView';
 import Sidebar from './components/Sidebar';
+import StatusIndicator from './components/StatusIndicator';
 import AuthModal from './components/AuthModal';
 import {
   createDistrictBoundary,
   fetchDistrictsWithMeta,
   fetchEditHistory,
+  renameDistrict,
   softDeleteDistrict,
   updateDistrictBoundary,
 } from './lib/districts';
@@ -44,7 +46,7 @@ export default function App() {
     message: '',
   });
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isEditor = useMemo(() => true, []);
+  const isEditor = useMemo(() => role === 'editor' || role === 'admin', [role]);
   const isAdmin = useMemo(() => role === 'admin', [role]);
 
   useEffect(() => {
@@ -237,6 +239,24 @@ export default function App() {
     }
   };
 
+  const handleDistrictRename = async (districtId: string, newName: string, chapterName?: string): Promise<OperationResult> => {
+    if (!user) {
+      setAuthOpen(true);
+      return { ok: false, message: 'Login required.' };
+    }
+    if (!isEditor) {
+      return { ok: false, message: 'Only editors can rename districts.' };
+    }
+    try {
+      await renameDistrict(districtId, newName, chapterName);
+      await refreshDistrictsAndHistory();
+      return { ok: true, message: 'District renamed.' };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to rename district.';
+      return { ok: false, message };
+    }
+  };
+
   const handleSignOut = async () => {
     try {
       await signOut();
@@ -258,8 +278,6 @@ export default function App() {
         history={history}
         user={user}
         role={role}
-        supabaseStatus={supabaseStatus}
-        authStatus={authStatus}
         onLogin={() => setAuthOpen(true)}
         onLogout={handleSignOut}
       />
@@ -277,8 +295,10 @@ export default function App() {
           onBoundarySave={handleBoundarySave}
           onDistrictCreate={handleDistrictCreate}
           onDistrictDelete={handleDistrictDelete}
+          onDistrictRename={handleDistrictRename}
           loading={loading}
         />
+        <StatusIndicator supabaseStatus={supabaseStatus} authStatus={authStatus} />
       </main>
       <AuthModal
         isOpen={authOpen}
