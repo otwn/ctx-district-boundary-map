@@ -1,6 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import maplibregl, { type GeoJSONSource, type LayerSpecification, type RasterSourceSpecification } from 'maplibre-gl';
+import AddressSearch from './AddressSearch';
 import DrawControls from './DrawControls';
+import { findDistrictAtPoint } from '../lib/pointInPolygon';
 import type { DistrictFeature, DistrictFeatureCollection, DistrictGeometry, OperationResult, ViewState } from '../types/domain';
 
 type BasemapKey =
@@ -272,8 +274,11 @@ export default function MapView({
   const canEditRef = useRef(canEdit);
   const hoverPopupRef = useRef<maplibregl.Popup | null>(null);
   const clickPopupRef = useRef<maplibregl.Popup | null>(null);
+  const searchMarkerRef = useRef<maplibregl.Marker | null>(null);
+  const searchPopupRef = useRef<maplibregl.Popup | null>(null);
   const [mapReady, setMapReady] = useState(false);
   const [message, setMessage] = useState('');
+  const [searchResult, setSearchResult] = useState<string | null>(null);
 
   const basemapConfig = BASEMAPS[(basemap as BasemapKey) || 'osm-standard'] || BASEMAPS['osm-standard'];
 
@@ -424,6 +429,14 @@ export default function MapView({
         clickPopupRef.current.remove();
         clickPopupRef.current = null;
       }
+      if (searchMarkerRef.current) {
+        searchMarkerRef.current.remove();
+        searchMarkerRef.current = null;
+      }
+      if (searchPopupRef.current) {
+        searchPopupRef.current.remove();
+        searchPopupRef.current = null;
+      }
       map.remove();
       mapRef.current = null;
       setMapReady(false);
@@ -461,6 +474,42 @@ export default function MapView({
     };
   }, [districts, selectedDistrictId]);
 
+  const handleSearchResult = useCallback(
+    (result: { lat: number; lon: number }) => {
+      const map = mapRef.current;
+      if (!map) {
+        return;
+      }
+
+      // Remove previous marker/popup
+      if (searchMarkerRef.current) {
+        searchMarkerRef.current.remove();
+      }
+      if (searchPopupRef.current) {
+        searchPopupRef.current.remove();
+      }
+
+      const lngLat: [number, number] = [result.lon, result.lat];
+      const district = findDistrictAtPoint(lngLat, districtsRef.current);
+      const districtLabel = district ? district.properties.name : 'No district';
+      setSearchResult(districtLabel);
+
+      const popup = new maplibregl.Popup({ offset: 25, closeButton: true, closeOnClick: false })
+        .setHTML(`<strong>${escapeHtml(districtLabel)}</strong>`);
+      searchPopupRef.current = popup;
+
+      const marker = new maplibregl.Marker({ color: '#ffd700' })
+        .setLngLat(lngLat)
+        .setPopup(popup)
+        .addTo(map);
+      marker.togglePopup();
+      searchMarkerRef.current = marker;
+
+      map.flyTo({ center: lngLat, zoom: Math.max(map.getZoom(), 13), essential: true });
+    },
+    [],
+  );
+
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !selectedDistrictId) {
@@ -477,6 +526,8 @@ export default function MapView({
   return (
     <>
       <div ref={mapNodeRef} className="map-container" />
+      <AddressSearch onResult={handleSearchResult} />
+      {searchResult ? <div className="search-result">District: {searchResult}</div> : null}
       {loading ? <div className="map-loading">Loading boundaries...</div> : null}
       {message ? <div className="map-message">{message}</div> : null}
       <DrawControls
