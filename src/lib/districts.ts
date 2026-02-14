@@ -338,6 +338,14 @@ export async function createDistrictBoundary(
   await runDistrictEdit('insert', { id, name, geometry: newGeometry, color });
 }
 
+export async function renameDistrict(id: string, newName: string): Promise<void> {
+  const trimmed = newName.trim();
+  if (!trimmed) {
+    throw new Error('District name is required.');
+  }
+  await runDistrictEdit('update', { id, name: trimmed });
+}
+
 export async function softDeleteDistrict(id: string): Promise<void> {
   await runDistrictEdit('soft_delete', { id });
 }

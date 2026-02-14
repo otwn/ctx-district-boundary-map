@@ -32,6 +32,7 @@ type MapViewProps = {
   onBoundarySave: (districtId: string, geometry: DistrictGeometry) => Promise<OperationResult>;
   onDistrictCreate: (name: string, geometry: DistrictGeometry) => Promise<OperationResult>;
   onDistrictDelete: (districtId: string) => Promise<OperationResult>;
+  onDistrictRename: (districtId: string, newName: string) => Promise<OperationResult>;
   loading: boolean;
 };
 
@@ -266,6 +267,7 @@ export default function MapView({
   onBoundarySave,
   onDistrictCreate,
   onDistrictDelete,
+  onDistrictRename,
   loading,
 }: MapViewProps) {
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -551,6 +553,12 @@ export default function MapView({
         }}
         onDelete={async (districtId) => {
           const result = await onDistrictDelete(districtId);
+          setMessage(result.message);
+          setTimeout(() => setMessage(''), 2500);
+          return result;
+        }}
+        onRename={async (districtId, newName) => {
+          const result = await onDistrictRename(districtId, newName);
           setMessage(result.message);
           setTimeout(() => setMessage(''), 2500);
           return result;

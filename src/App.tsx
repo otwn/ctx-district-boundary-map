@@ -8,6 +8,7 @@ import {
   createDistrictBoundary,
   fetchDistrictsWithMeta,
   fetchEditHistory,
+  renameDistrict,
   softDeleteDistrict,
   updateDistrictBoundary,
 } from './lib/districts';
@@ -238,6 +239,24 @@ export default function App() {
     }
   };
 
+  const handleDistrictRename = async (districtId: string, newName: string): Promise<OperationResult> => {
+    if (!user) {
+      setAuthOpen(true);
+      return { ok: false, message: 'Login required.' };
+    }
+    if (!isEditor) {
+      return { ok: false, message: 'Only editors can rename districts.' };
+    }
+    try {
+      await renameDistrict(districtId, newName);
+      await refreshDistrictsAndHistory();
+      return { ok: true, message: 'District renamed.' };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to rename district.';
+      return { ok: false, message };
+    }
+  };
+
   const handleSignOut = async () => {
     try {
       await signOut();
@@ -276,6 +295,7 @@ export default function App() {
           onBoundarySave={handleBoundarySave}
           onDistrictCreate={handleDistrictCreate}
           onDistrictDelete={handleDistrictDelete}
+          onDistrictRename={handleDistrictRename}
           loading={loading}
         />
         <StatusIndicator supabaseStatus={supabaseStatus} authStatus={authStatus} />

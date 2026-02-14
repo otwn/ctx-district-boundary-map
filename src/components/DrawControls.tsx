@@ -35,6 +35,7 @@ type DrawControlsProps = {
   onSave: (districtId: string, geometry: DistrictGeometry) => Promise<OperationResult>;
   onCreate: (name: string, geometry: DistrictGeometry) => Promise<OperationResult>;
   onDelete: (districtId: string) => Promise<OperationResult>;
+  onRename: (districtId: string, newName: string) => Promise<OperationResult>;
 };
 
 export default function DrawControls({
@@ -47,6 +48,7 @@ export default function DrawControls({
   onSave,
   onCreate,
   onDelete,
+  onRename,
 }: DrawControlsProps) {
   const geomanRef = useRef<GeomanApi | null>(null);
   const modeRef = useRef<DrawMode>('idle');
@@ -216,6 +218,21 @@ export default function DrawControls({
     await onDelete(selectedDistrictId);
   };
 
+  const renameSelected = async () => {
+    if (!selectedDistrictId || editing) {
+      return;
+    }
+
+    const currentDistrict = districts.features.find((feature) => feature.properties?.id === selectedDistrictId);
+    const currentName = currentDistrict?.properties?.name || '';
+    const newName = window.prompt('Enter new district name', currentName);
+    if (!newName || newName.trim() === currentName) {
+      return;
+    }
+
+    await onRename(selectedDistrictId, newName.trim());
+  };
+
   if (!canEdit) {
     return null;
   }
@@ -226,6 +243,9 @@ export default function DrawControls({
     <div className="draw-controls">
       <button onClick={startEditing} disabled={!selectedDistrictId || editing}>
         Edit Selected
+      </button>
+      <button onClick={() => void renameSelected()} disabled={!selectedDistrictId || editing}>
+        Rename
       </button>
       {canAdmin ? (
         <button onClick={startCreate} disabled={editing}>
