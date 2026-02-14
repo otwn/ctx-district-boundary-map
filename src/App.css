@@ -60,20 +60,8 @@ body {
   letter-spacing: 0.02em;
 }
 
-.status-grid {
-  display: grid;
-  gap: 8px;
-}
-
-.status-item {
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 8px;
-}
-
 .status-chip {
   display: inline-flex;
-  margin-top: 6px;
   padding: 2px 8px;
   border-radius: 999px;
   font-size: 0.8rem;
@@ -100,9 +88,70 @@ body {
   color: #c8d5e2;
 }
 
-.status-detail {
-  margin-top: 6px;
-  font-size: 0.82rem;
+.status-indicator {
+  position: absolute;
+  bottom: 28px;
+  right: 12px;
+  z-index: 3;
+}
+
+.status-dot {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  padding: 0;
+  cursor: pointer;
+  transition: box-shadow 0.2s;
+}
+
+.status-dot:hover {
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+.status-dot.dot-green {
+  background: rgba(46, 196, 107, 0.8);
+  border-color: rgba(46, 196, 107, 0.6);
+}
+
+.status-dot.dot-yellow {
+  background: rgba(255, 153, 51, 0.8);
+  border-color: rgba(255, 153, 51, 0.6);
+}
+
+.status-dot.dot-gray {
+  background: rgba(160, 174, 192, 0.6);
+  border-color: rgba(160, 174, 192, 0.4);
+}
+
+.status-panel {
+  position: absolute;
+  bottom: 36px;
+  right: 0;
+  width: 240px;
+  background: rgba(9, 13, 18, 0.92);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.status-panel-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.status-panel-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.status-panel-detail {
+  font-size: 0.8rem;
   color: #b8c2cf;
   word-break: break-word;
 }

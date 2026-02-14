@@ -295,8 +295,41 @@ export default function MapView({
       style: {
         version: 8,
         glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
-        sources: basemapConfig.sources,
-        layers: basemapConfig.layers,
+        sources: {
+          ...basemapConfig.sources,
+          districts: { type: 'geojson', data: districtsRef.current || EMPTY_FC },
+        },
+        layers: [
+          ...basemapConfig.layers,
+          {
+            id: 'district-fill',
+            type: 'fill',
+            source: 'districts',
+            paint: { 'fill-color': '#00A651', 'fill-opacity': 0 },
+          } as LayerSpecification,
+          {
+            id: 'district-outline',
+            type: 'line',
+            source: 'districts',
+            paint: { 'line-color': '#00A651', 'line-width': 3 },
+          } as LayerSpecification,
+          {
+            id: 'district-label',
+            type: 'symbol',
+            source: 'districts',
+            layout: {
+              'text-field': ['get', 'name'],
+              'text-size': 12,
+              'text-font': ['Noto Sans Regular'],
+              'text-allow-overlap': false,
+            },
+            paint: {
+              'text-color': '#ffffff',
+              'text-halo-color': 'rgba(0,0,0,0.8)',
+              'text-halo-width': 1.2,
+            },
+          } as LayerSpecification,
+        ],
       },
       center: initialView?.center || [-97.74, 30.28],
       zoom: initialView?.zoom ?? 9,
@@ -309,45 +342,6 @@ export default function MapView({
 
     map.on('load', () => {
       try {
-        map.addSource('districts', { type: 'geojson', data: districtsRef.current || EMPTY_FC });
-
-        map.addLayer({
-          id: 'district-fill',
-          type: 'fill',
-          source: 'districts',
-          paint: {
-            'fill-color': '#00A651',
-            'fill-opacity': 0,
-          },
-        });
-
-        map.addLayer({
-          id: 'district-outline',
-          type: 'line',
-          source: 'districts',
-          paint: {
-            'line-color': '#00A651',
-            'line-width': 3,
-          },
-        });
-
-        map.addLayer({
-          id: 'district-label',
-          type: 'symbol',
-          source: 'districts',
-          layout: {
-            'text-field': ['get', 'name'],
-            'text-size': 12,
-            'text-font': ['Noto Sans Regular'],
-            'text-allow-overlap': false,
-          },
-          paint: {
-            'text-color': '#ffffff',
-            'text-halo-color': 'rgba(0,0,0,0.8)',
-            'text-halo-width': 1.2,
-          },
-        });
-
         moveDistrictLayersBelowDraw(map);
       } catch (err) {
         console.error('District layer setup failed:', err);

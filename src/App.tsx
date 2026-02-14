@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { User } from '@supabase/supabase-js';
 import MapView from './components/MapView';
 import Sidebar from './components/Sidebar';
+import StatusIndicator from './components/StatusIndicator';
 import AuthModal from './components/AuthModal';
 import {
   createDistrictBoundary,
@@ -258,8 +259,6 @@ export default function App() {
         history={history}
         user={user}
         role={role}
-        supabaseStatus={supabaseStatus}
-        authStatus={authStatus}
         onLogin={() => setAuthOpen(true)}
         onLogout={handleSignOut}
       />
@@ -279,6 +278,7 @@ export default function App() {
           onDistrictDelete={handleDistrictDelete}
           loading={loading}
         />
+        <StatusIndicator supabaseStatus={supabaseStatus} authStatus={authStatus} />
       </main>
       <AuthModal
         isOpen={authOpen}
