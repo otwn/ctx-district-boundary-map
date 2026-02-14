@@ -220,6 +220,8 @@ export default function DrawControls({
     return null;
   }
 
+  const isActive = editing || modeRef.current === 'create-pending';
+
   return (
     <div className="draw-controls">
       <button onClick={startEditing} disabled={!selectedDistrictId || editing}>
@@ -230,12 +232,16 @@ export default function DrawControls({
           Add Polygon
         </button>
       ) : null}
-      <button className="primary" onClick={() => void saveEditing()} disabled={!editing || modeRef.current === 'create-pending'}>
-        Save
-      </button>
-      <button className="danger" onClick={cancelEditing} disabled={!editing}>
-        Cancel
-      </button>
+      {isActive ? (
+        <>
+          <button className="primary" onClick={() => void saveEditing()} disabled={!editing}>
+            Save
+          </button>
+          <button className="danger" onClick={cancelEditing}>
+            Cancel
+          </button>
+        </>
+      ) : null}
       {canAdmin ? (
         <button className="danger" onClick={() => void deleteSelected()} disabled={!selectedDistrictId || editing}>
           Delete Selected

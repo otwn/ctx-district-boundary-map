@@ -45,7 +45,7 @@ export default function App() {
     message: '',
   });
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isEditor = useMemo(() => true, []);
+  const isEditor = useMemo(() => role === 'editor' || role === 'admin', [role]);
   const isAdmin = useMemo(() => role === 'admin', [role]);
 
   useEffect(() => {

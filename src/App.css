@@ -168,7 +168,7 @@ body {
   width: 100%;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid var(--border);
-  color: #000000;
+  color: #f0f4f8;
   border-radius: 8px;
   padding: 8px 10px;
 }
