@@ -19,6 +19,7 @@ import type {
   BoundaryEdit,
   DistrictFeatureCollection,
   DistrictGeometry,
+  DistrictLineColor,
   OperationResult,
   SystemAuthStatus,
   SystemSupabaseStatus,
@@ -31,6 +32,7 @@ export default function App() {
   const [districts, setDistricts] = useState<DistrictFeatureCollection>(EMPTY_FC);
   const [history, setHistory] = useState<BoundaryEdit[]>([]);
   const [basemap, setBasemap] = useState('osm-standard');
+  const [lineColor, setLineColor] = useState<DistrictLineColor>('green');
   const [viewState, setViewState] = useState<ViewState>({ center: [-97.74, 30.28], zoom: 9 });
   const [selectedDistrictId, setSelectedDistrictId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -275,6 +277,8 @@ export default function App() {
         onSelectDistrict={setSelectedDistrictId}
         basemap={basemap}
         onBasemapChange={setBasemap}
+        lineColor={lineColor}
+        onLineColorChange={setLineColor}
         history={history}
         user={user}
         role={role}
@@ -287,6 +291,7 @@ export default function App() {
           basemap={basemap}
           initialView={viewState}
           onViewChange={setViewState}
+          lineColor={lineColor}
           districts={districts}
           selectedDistrictId={selectedDistrictId}
           onSelectDistrict={setSelectedDistrictId}

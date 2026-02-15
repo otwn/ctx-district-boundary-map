@@ -2,6 +2,7 @@ import type { User } from '@supabase/supabase-js';
 import type {
   AppRole,
   BoundaryEdit,
+  DistrictLineColor,
   DistrictFeature,
 } from '../types/domain';
 
@@ -11,6 +12,8 @@ type SidebarProps = {
   onSelectDistrict: (districtId: string | null) => void;
   basemap: string;
   onBasemapChange: (basemap: string) => void;
+  lineColor: DistrictLineColor;
+  onLineColorChange: (lineColor: DistrictLineColor) => void;
   history: BoundaryEdit[];
   user: User | null;
   role: AppRole;
@@ -24,6 +27,8 @@ export default function Sidebar({
   onSelectDistrict,
   basemap,
   onBasemapChange,
+  lineColor,
+  onLineColorChange,
   history,
   user,
   role,
@@ -62,6 +67,16 @@ export default function Sidebar({
           <option value="esri-imagery-hybrid">Esri Imagery Hybrid</option>
           <option value="open-topo">OpenTopoMap</option>
         </select>
+        <h2>Line Color</h2>
+        <select
+          className="basemap-select"
+          value={lineColor}
+          onChange={(event) => onLineColorChange(event.target.value as DistrictLineColor)}
+        >
+          <option value="green">Green</option>
+          <option value="black">Black</option>
+          <option value="red">Red</option>
+        </select>
       </section>
 
       <section className="section">
@@ -88,14 +103,17 @@ export default function Sidebar({
         <h2>Recent Edits</h2>
         <ul className="history-list">
           {history.length ? (
-            history.map((entry) => (
-              <li key={entry.id} className="history-item">
-                <div>{entry.district_name || entry.district_id}</div>
-                <div>Action: {entry.action || 'update'}</div>
-                <div>By: {entry.edited_by_email || entry.edited_by || 'Unknown'}</div>
-                <div className="history-time">{new Date(entry.created_at).toLocaleString()}</div>
-              </li>
-            ))
+            history.map((entry) => {
+              const actorLabel = entry.edited_by ? `User ${entry.edited_by.slice(0, 8)}` : 'Unknown';
+              return (
+                <li key={entry.id} className="history-item">
+                  <div>{entry.district_name || entry.district_id}</div>
+                  <div>Action: {entry.action || 'update'}</div>
+                  <div>By: {actorLabel}</div>
+                  <div className="history-time">{new Date(entry.created_at).toLocaleString()}</div>
+                </li>
+              );
+            })
           ) : (
             <li className="history-item">No edit history yet.</li>
           )}

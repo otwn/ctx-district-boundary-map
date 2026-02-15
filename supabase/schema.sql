@@ -46,25 +46,11 @@ alter table public.boundary_edits
 add constraint boundary_edits_action_check
 check (action in ('insert', 'update', 'soft_delete', 'restore'));
 
-create or replace function public.set_boundary_edit_email()
-returns trigger
-language plpgsql
-security definer
-set search_path = public
-as $$
-begin
-  if new.edited_by is not null and new.edited_by_email is null then
-    select email into new.edited_by_email from auth.users where id = new.edited_by;
-  end if;
-  return new;
-end;
-$$;
-
 drop trigger if exists trg_boundary_edit_email on public.boundary_edits;
-create trigger trg_boundary_edit_email
-before insert on public.boundary_edits
-for each row
-execute function public.set_boundary_edit_email();
+drop function if exists public.set_boundary_edit_email();
+update public.boundary_edits
+set edited_by_email = null
+where edited_by_email is not null;
 
 create or replace function public.current_role()
 returns text
@@ -348,7 +334,7 @@ drop policy if exists "edits readable" on public.boundary_edits;
 create policy "edits readable"
 on public.boundary_edits
 for select
-using (true);
+using (auth.uid() is not null);
 
 drop policy if exists "edits created by editors" on public.boundary_edits;
 create policy "edits created by editors"
