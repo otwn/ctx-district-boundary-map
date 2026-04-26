@@ -15,6 +15,7 @@ export type DistrictFeature = Feature<DistrictGeometry, DistrictProperties>;
 export type DistrictFeatureCollection = FeatureCollection<DistrictGeometry, DistrictProperties>;
 
 export type AppRole = 'viewer' | 'admin' | 'editor';
+export type DistrictLineColor = 'green' | 'black' | 'red';
 
 export type SystemSupabaseStatus = {
   state: 'checking' | 'connected' | 'fallback';
@@ -37,7 +38,6 @@ export type BoundaryEdit = {
   district_name?: string | null;
   action?: string | null;
   edited_by?: string | null;
-  edited_by_email?: string | null;
   created_at: string;
 };
 

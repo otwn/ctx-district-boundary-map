@@ -3,7 +3,14 @@ import maplibregl, { type GeoJSONSource, type LayerSpecification, type RasterSou
 import AddressSearch from './AddressSearch';
 import DrawControls from './DrawControls';
 import { findDistrictAtPoint } from '../lib/pointInPolygon';
-import type { DistrictFeature, DistrictFeatureCollection, DistrictGeometry, OperationResult, ViewState } from '../types/domain';
+import type {
+  DistrictFeature,
+  DistrictFeatureCollection,
+  DistrictGeometry,
+  DistrictLineColor,
+  OperationResult,
+  ViewState,
+} from '../types/domain';
 
 type BasemapKey =
   | 'osm-standard'
@@ -24,6 +31,7 @@ type MapViewProps = {
   basemap: string;
   initialView: ViewState;
   onViewChange: (view: ViewState) => void;
+  lineColor: DistrictLineColor;
   districts: DistrictFeatureCollection;
   selectedDistrictId: string | null;
   onSelectDistrict: (districtId: string) => void;
@@ -37,6 +45,11 @@ type MapViewProps = {
 };
 
 const EMPTY_FC: DistrictFeatureCollection = { type: 'FeatureCollection', features: [] };
+const DISTRICT_LINE_COLORS: Record<DistrictLineColor, string> = {
+  green: '#00A651',
+  black: '#000000',
+  red: '#FF0000',
+};
 
 const BASEMAPS: Record<BasemapKey, BasemapConfig> = {
   'osm-standard': {
@@ -267,6 +280,7 @@ export default function MapView({
   basemap,
   initialView,
   onViewChange,
+  lineColor,
   districts,
   selectedDistrictId,
   onSelectDistrict,
@@ -291,6 +305,7 @@ export default function MapView({
   const [searchResult, setSearchResult] = useState<string | null>(null);
 
   const basemapConfig = BASEMAPS[(basemap as BasemapKey) || 'osm-standard'] || BASEMAPS['osm-standard'];
+  const districtLineColorHex = DISTRICT_LINE_COLORS[lineColor] || DISTRICT_LINE_COLORS.green;
 
   useEffect(() => {
     districtsRef.current = districts;
@@ -326,7 +341,7 @@ export default function MapView({
             id: 'district-outline',
             type: 'line',
             source: 'districts',
-            paint: { 'line-color': '#00A651', 'line-width': 3 },
+            paint: { 'line-color': districtLineColorHex, 'line-width': 3 },
           } as LayerSpecification,
           {
             id: 'district-label',
@@ -465,6 +480,7 @@ export default function MapView({
         (source as GeoJSONSource).setData(districts || EMPTY_FC);
       }
       if (map.getLayer('district-outline')) {
+        map.setPaintProperty('district-outline', 'line-color', districtLineColorHex);
         map.setPaintProperty('district-outline', 'line-width', [
           'case',
           ['==', ['get', 'id'], selectedDistrictId || ''],
@@ -482,7 +498,7 @@ export default function MapView({
     return () => {
       map.off('load', syncData);
     };
-  }, [districts, selectedDistrictId]);
+  }, [districts, districtLineColorHex, selectedDistrictId]);
 
   const handleSearchResult = useCallback(
     (result: { lat: number; lon: number }) => {

@@ -308,7 +308,7 @@ async function runDistrictEdit(
     p_district_id: payload.id ?? null,
     p_name: payload.name ?? null,
     p_geometry: payload.geometry ?? null,
-    p_color: payload.color ?? '#FFD700',
+    p_color: payload.color ?? null,
     p_chapter_name: payload.chapter_name ?? null,
   });
 
@@ -364,7 +364,7 @@ export async function fetchEditHistory(districtId?: string): Promise<BoundaryEdi
 
   let query = supabase
     .from('boundary_edits')
-    .select('id,district_id,district_name,action,edited_by,edited_by_email,created_at')
+    .select('id,district_id,district_name,action,edited_by,created_at')
     .order('created_at', { ascending: false })
     .limit(20);
 
