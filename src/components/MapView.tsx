@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import maplibregl, { type GeoJSONSource, type LayerSpecification, type RasterSourceSpecification } from 'maplibre-gl';
 import AddressSearch from './AddressSearch';
 import DrawControls from './DrawControls';
+import PrintControls from './PrintControls';
 import { findDistrictAtPoint } from '../lib/pointInPolygon';
 import type {
   DistrictFeature,
@@ -588,6 +589,7 @@ export default function MapView({
           return result;
         }}
       />
+      <PrintControls mapRef={mapRef} />
     </>
   );
 }

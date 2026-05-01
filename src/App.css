@@ -414,14 +414,475 @@ button.danger {
   font-size: 0.9rem;
 }
 
-@media (max-width: 860px) {
+/* ── Mobile / Tablet Responsive ──────────────── */
+
+/* Desktop: show desktop brand, hide mobile header */
+.sidebar-mobile-header {
+  display: none;
+}
+
+.sidebar-brand-desktop {
+  display: block;
+}
+
+/* Hamburger toggle — hidden on desktop */
+.sidebar-toggle {
+  display: none;
+}
+
+/* Backdrop overlay — only visible on mobile when sidebar is open */
+.sidebar-backdrop {
+  display: none;
+}
+
+/* Sidebar close button — only on mobile */
+.sidebar-close-btn {
+  display: none;
+}
+
+/* Phone & tablet: slide-in sidebar, full-screen map.
+   Breakpoint covers iPad portrait (820), iPad mini landscape (1024),
+   iPhone Pro Max landscape (~932), and small browser windows. */
+@media (max-width: 1024px) {
   .app-shell {
     grid-template-columns: 1fr;
-    grid-template-rows: 44% 56%;
+    grid-template-rows: 1fr;
   }
 
+  /* Sidebar: off-screen by default, slides in */
   .sidebar {
-    border-right: 0;
-    border-bottom: 1px solid var(--border);
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: min(360px, 85vw);
+    z-index: 15;
+    border-right: 1px solid var(--border);
+    border-bottom: none;
+    transform: translateX(-100%);
+    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-top: max(16px, env(safe-area-inset-top));
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
+  }
+
+  .sidebar.sidebar--open {
+    transform: translateX(0);
+  }
+
+  /* Show mobile header with close button */
+  .sidebar-mobile-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .sidebar-close-btn {
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    padding: 0;
+    font-size: 1rem;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--border);
+    color: #c8d5e2;
+    cursor: pointer;
+    margin-top: 2px;
+  }
+
+  .sidebar-close-btn:hover {
+    border-color: var(--danger);
+    color: var(--danger);
+  }
+
+  /* Hide the desktop brand (mobile header has its own) */
+  .sidebar-brand-desktop {
+    display: none;
+  }
+
+  /* Backdrop */
+  .sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 14;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(2px);
+  }
+
+  /* Hamburger button — respect iOS safe area */
+  .sidebar-toggle {
+    display: grid;
+    place-items: center;
+    position: fixed;
+    top: max(12px, env(safe-area-inset-top));
+    left: max(12px, env(safe-area-inset-left));
+    z-index: 10;
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    background: rgba(9, 13, 18, 0.85);
+    border: 1px solid var(--border);
+    backdrop-filter: blur(8px);
+    color: #f0f4f8;
+    font-size: 1.3rem;
+    padding: 0;
+    cursor: pointer;
+    transition: border-color 0.2s;
+  }
+
+  .sidebar-toggle:hover {
+    border-color: rgba(255, 215, 0, 0.65);
+  }
+
+  /* Map takes full screen */
+  .map-pane {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  /* Hide district list and history on phone/tablet */
+  .section-districts,
+  .section-history {
+    display: none;
+  }
+
+  /* Push address search right to avoid hamburger overlap */
+  .address-search {
+    top: max(12px, env(safe-area-inset-top));
+    right: max(12px, env(safe-area-inset-right));
+    left: calc(max(12px, env(safe-area-inset-left)) + 56px);
+  }
+
+  .address-search-input {
+    width: 100%;
+    min-width: 0;
+    /* 16px prevents iOS Safari from zooming on focus */
+    font-size: 16px;
+  }
+
+  .address-search-form {
+    flex-wrap: nowrap;
+  }
+
+  /* Move draw controls to not overlap hamburger */
+  .draw-controls {
+    top: 64px;
+    left: max(12px, env(safe-area-inset-left));
+    right: max(12px, env(safe-area-inset-right));
+    max-width: calc(100vw - 24px);
+  }
+
+  /* Adjust search result badge */
+  .search-result {
+    top: 56px;
+    right: max(12px, env(safe-area-inset-right));
+    left: calc(max(12px, env(safe-area-inset-left)) + 56px);
+    text-align: center;
+  }
+
+  /* Print button: respect safe area on iOS */
+  .print-btn {
+    bottom: max(28px, env(safe-area-inset-bottom));
+    left: max(12px, env(safe-area-inset-left));
+  }
+
+  .print-controls-panel {
+    bottom: max(28px, env(safe-area-inset-bottom));
+    left: max(12px, env(safe-area-inset-left));
+    width: min(280px, calc(100vw - 24px));
+  }
+
+  .status-indicator {
+    bottom: max(28px, env(safe-area-inset-bottom));
+    right: max(12px, env(safe-area-inset-right));
+  }
+
+  /* Larger touch targets across the board */
+  button {
+    min-height: 40px;
+  }
+
+  .basemap-select,
+  .print-control-group select {
+    min-height: 40px;
+    /* 16px prevents iOS Safari zoom on focus */
+    font-size: 16px;
+  }
+
+  .auth-modal input {
+    font-size: 16px;
   }
 }
+
+/* Extra small phones */
+@media (max-width: 480px) {
+  .sidebar {
+    width: 100vw;
+  }
+
+  .address-search {
+    left: calc(max(8px, env(safe-area-inset-left)) + 56px);
+    right: max(8px, env(safe-area-inset-right));
+  }
+
+  .print-controls-panel {
+    width: calc(100vw - 24px);
+  }
+
+  /* Tighten draw controls on very narrow phones */
+  .draw-controls {
+    gap: 4px;
+    padding: 6px;
+  }
+
+  .draw-controls button {
+    font-size: 0.82rem;
+    padding: 6px 8px;
+  }
+}
+
+/* Landscape phones: keep top toolbar usable when height is short */
+@media (max-width: 1024px) and (max-height: 500px) {
+  .draw-controls {
+    top: 56px;
+  }
+
+  .print-controls-panel {
+    /* Avoid covering map in landscape on short viewports */
+    max-height: calc(100vh - 80px);
+    overflow-y: auto;
+  }
+}
+
+/* ── Print Button ────────────────────────────── */
+
+.print-btn {
+  position: absolute;
+  bottom: 28px;
+  left: 12px;
+  z-index: 3;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: rgba(9, 13, 18, 0.82);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(8px);
+  cursor: pointer;
+  font-size: 1.1rem;
+  padding: 0;
+  line-height: 1;
+  transition: border-color 0.2s;
+}
+
+.print-btn:hover {
+  border-color: rgba(255, 215, 0, 0.65);
+}
+
+/* ── Print Controls Panel ────────────────────── */
+
+.print-controls-panel {
+  position: absolute;
+  bottom: 28px;
+  left: 12px;
+  z-index: 5;
+  width: 260px;
+  background: rgba(9, 13, 18, 0.94);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+  backdrop-filter: blur(12px);
+  display: grid;
+  gap: 12px;
+}
+
+.print-controls-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.95rem;
+}
+
+.print-close-btn {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  padding: 0;
+  font-size: 0.85rem;
+  background: transparent;
+  border: 1px solid var(--border);
+  cursor: pointer;
+}
+
+.print-close-btn:hover {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.print-control-group {
+  display: grid;
+  gap: 4px;
+}
+
+.print-control-group label {
+  font-size: 0.8rem;
+  color: #a0aec0;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.print-control-group select {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  color: #f0f4f8;
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 0.85rem;
+}
+
+.print-control-group select option {
+  color: #000;
+  background: #fff;
+}
+
+.print-orientation-btns {
+  display: flex;
+  gap: 6px;
+}
+
+.print-orientation-btns button {
+  flex: 1;
+  font-size: 0.82rem;
+  padding: 6px 8px;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  color: #c8d5e2;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.print-orientation-btns button.active {
+  border-color: rgba(255, 215, 0, 0.6);
+  background: rgba(255, 215, 0, 0.15);
+  color: #ffd700;
+}
+
+.print-control-group input[type='range'] {
+  width: 100%;
+  accent-color: var(--accent);
+  height: 6px;
+  cursor: pointer;
+}
+
+.print-zoom-hints {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.72rem;
+  color: #7a8a9a;
+}
+
+.print-hint {
+  margin: 0;
+  font-size: 0.78rem;
+  color: #8a95a3;
+  line-height: 1.4;
+}
+
+.print-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.print-action-btn {
+  flex: 1;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.04);
+  color: #ecf2f8;
+  transition: all 0.15s;
+}
+
+.print-action-btn.primary {
+  background: rgba(255, 215, 0, 0.2);
+  border-color: rgba(255, 215, 0, 0.55);
+  color: #ffd700;
+  font-weight: 600;
+}
+
+.print-action-btn.primary:hover {
+  background: rgba(255, 215, 0, 0.3);
+}
+
+/* ── Print Media Rules ───────────────────────── */
+
+@media print {
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  html, body, #root {
+    width: 100% !important;
+    height: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+
+  .app-shell {
+    display: block !important;
+    width: 100% !important;
+    height: 100% !important;
+  }
+
+  .sidebar,
+  .sidebar-toggle,
+  .sidebar-backdrop,
+  .draw-controls,
+  .print-btn,
+  .print-controls-panel,
+  .address-search,
+  .search-result,
+  .map-loading,
+  .map-message,
+  .status-indicator,
+  .maplibregl-ctrl-top-right,
+  .maplibregl-ctrl-bottom-left,
+  .maplibregl-ctrl-bottom-right,
+  .maplibregl-popup,
+  .auth-overlay {
+    display: none !important;
+  }
+
+  .map-pane {
+    position: static !important;
+    width: 100% !important;
+    height: 100% !important;
+  }
+
+  .map-container {
+    width: 100% !important;
+    height: 100% !important;
+  }
+
+  .maplibregl-canvas {
+    width: 100% !important;
+    height: 100% !important;
+  }
+}
+

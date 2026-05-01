@@ -19,6 +19,8 @@ type SidebarProps = {
   role: AppRole;
   onLogin: () => void;
   onLogout: () => void;
+  isOpen: boolean;
+  onClose: () => void;
 };
 
 export default function Sidebar({
@@ -34,10 +36,22 @@ export default function Sidebar({
   role,
   onLogin,
   onLogout,
+  isOpen,
+  onClose,
 }: SidebarProps) {
   return (
-    <aside className="sidebar">
-      <div className="brand">
+    <aside className={`sidebar ${isOpen ? 'sidebar--open' : ''}`}>
+      <div className="sidebar-mobile-header">
+        <div className="brand">
+          <h1>CTX District Map</h1>
+          <p>Austin-area district boundaries</p>
+        </div>
+        <button className="sidebar-close-btn" onClick={onClose} aria-label="Close sidebar">
+          ✕
+        </button>
+      </div>
+
+      <div className="brand sidebar-brand-desktop">
         <h1>CTX District Map</h1>
         <p>Austin-area district boundaries</p>
       </div>
@@ -79,7 +93,8 @@ export default function Sidebar({
         </select>
       </section>
 
-      <section className="section">
+      {/* District list: hidden on mobile, shown on desktop */}
+      <section className="section section-districts">
         <h2>Districts</h2>
         <ul className="district-list">
           {districts.map((feature) => {
@@ -99,7 +114,7 @@ export default function Sidebar({
         </ul>
       </section>
 
-      <section className="section">
+      <section className="section section-history">
         <h2>Recent Edits</h2>
         <ul className="history-list">
           {history.length ? (
