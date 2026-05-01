@@ -552,10 +552,11 @@ button.danger {
     display: none;
   }
 
-  /* Push address search right to avoid hamburger overlap */
+  /* Push address search right to avoid hamburger overlap (left)
+     and leave room for the MapLibre NavigationControl (top-right). */
   .address-search {
     top: max(12px, env(safe-area-inset-top));
-    right: max(12px, env(safe-area-inset-right));
+    right: calc(max(12px, env(safe-area-inset-right)) + 44px);
     left: calc(max(12px, env(safe-area-inset-left)) + 56px);
   }
 
@@ -578,10 +579,10 @@ button.danger {
     max-width: calc(100vw - 24px);
   }
 
-  /* Adjust search result badge */
+  /* Adjust search result badge — also clear of NavigationControl */
   .search-result {
     top: 56px;
-    right: max(12px, env(safe-area-inset-right));
+    right: calc(max(12px, env(safe-area-inset-right)) + 44px);
     left: calc(max(12px, env(safe-area-inset-left)) + 56px);
     text-align: center;
   }
@@ -628,7 +629,7 @@ button.danger {
 
   .address-search {
     left: calc(max(8px, env(safe-area-inset-left)) + 56px);
-    right: max(8px, env(safe-area-inset-right));
+    right: calc(max(8px, env(safe-area-inset-right)) + 44px);
   }
 
   .print-controls-panel {
