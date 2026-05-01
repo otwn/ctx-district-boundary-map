@@ -206,15 +206,9 @@ function buildAttributesHtml(properties?: Record<string, unknown> | null): strin
   const name = escapeHtml(properties?.name || 'District');
   const chapterName = properties?.chapter_name ? escapeHtml(properties.chapter_name) : '';
   const chapterLine = chapterName
-    ? `<div style="margin:0 0 4px 0;color:#666;font-size:0.9em;">${chapterName}</div>`
+    ? `<div style="margin:0;color:#444;font-size:0.95em;">Chapter: ${chapterName}</div>`
     : '';
-  const skipKeys = new Set(['id', 'name', 'chapter_name']);
-  const rows = Object.entries(properties || {})
-    .filter(([key]) => !skipKeys.has(key))
-    .map(([key, value]) => `<tr><td><strong>${escapeHtml(key)}</strong></td><td>${escapeHtml(value)}</td></tr>`)
-    .join('');
-  const table = rows ? `<table style="margin-top:4px;">${rows}</table>` : '';
-  return `<div><h4 style="margin:0 0 2px 0;">${name}</h4>${chapterLine}${table}</div>`;
+  return `<div><h4 style="margin:0 0 4px 0;">${name}</h4>${chapterLine}</div>`;
 }
 
 function getFeatureCenter(feature?: DistrictFeature | null): [number, number] | null {
