@@ -28,15 +28,26 @@ import type {
 
 const EMPTY_FC: DistrictFeatureCollection = { type: 'FeatureCollection', features: [] };
 
+const getInitialBasemap = (): string => {
+  if (typeof window === 'undefined') {
+    return 'osm-standard';
+  }
+  const isTouchOrSmallViewport =
+    window.matchMedia('(pointer: coarse)').matches ||
+    window.matchMedia('(max-width: 1024px)').matches;
+  return isTouchOrSmallViewport ? 'google-like-voyager' : 'osm-standard';
+};
+
 export default function App() {
   const [districts, setDistricts] = useState<DistrictFeatureCollection>(EMPTY_FC);
   const [history, setHistory] = useState<BoundaryEdit[]>([]);
-  const [basemap, setBasemap] = useState('osm-standard');
+  const [basemap, setBasemap] = useState<string>(getInitialBasemap);
   const [lineColor, setLineColor] = useState<DistrictLineColor>('black');
   const [viewState, setViewState] = useState<ViewState>({ center: [-97.74, 30.28], zoom: 9 });
   const [selectedDistrictId, setSelectedDistrictId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [authOpen, setAuthOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [role, setRole] = useState<AppRole>('viewer');
   const [supabaseStatus, setSupabaseStatus] = useState<SystemSupabaseStatus>({
@@ -271,10 +282,16 @@ export default function App() {
 
   return (
     <div className="app-shell">
+      {sidebarOpen && (
+        <div className="sidebar-backdrop" onClick={() => setSidebarOpen(false)} />
+      )}
       <Sidebar
         districts={districts.features}
         selectedDistrictId={selectedDistrictId}
-        onSelectDistrict={setSelectedDistrictId}
+        onSelectDistrict={(id) => {
+          setSelectedDistrictId(id);
+          setSidebarOpen(false);
+        }}
         basemap={basemap}
         onBasemapChange={setBasemap}
         lineColor={lineColor}
@@ -284,7 +301,16 @@ export default function App() {
         role={role}
         onLogin={() => setAuthOpen(true)}
         onLogout={handleSignOut}
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
       />
+      <button
+        className="sidebar-toggle"
+        onClick={() => setSidebarOpen((prev) => !prev)}
+        aria-label={sidebarOpen ? 'Close menu' : 'Open menu'}
+      >
+        {sidebarOpen ? '✕' : '☰'}
+      </button>
       <main className="map-pane">
         <MapView
           key={basemap}
