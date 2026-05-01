@@ -35,7 +35,7 @@ type MapViewProps = {
   lineColor: DistrictLineColor;
   districts: DistrictFeatureCollection;
   selectedDistrictId: string | null;
-  onSelectDistrict: (districtId: string) => void;
+  onSelectDistrict: (districtId: string | null) => void;
   canEdit: boolean;
   canAdmin: boolean;
   onBoundarySave: (districtId: string, geometry: DistrictGeometry) => Promise<OperationResult>;
@@ -206,15 +206,9 @@ function buildAttributesHtml(properties?: Record<string, unknown> | null): strin
   const name = escapeHtml(properties?.name || 'District');
   const chapterName = properties?.chapter_name ? escapeHtml(properties.chapter_name) : '';
   const chapterLine = chapterName
-    ? `<div style="margin:0 0 4px 0;color:#666;font-size:0.9em;">${chapterName}</div>`
+    ? `<div style="margin:0;color:#444;font-size:0.95em;">Chapter: ${chapterName}</div>`
     : '';
-  const skipKeys = new Set(['id', 'name', 'chapter_name']);
-  const rows = Object.entries(properties || {})
-    .filter(([key]) => !skipKeys.has(key))
-    .map(([key, value]) => `<tr><td><strong>${escapeHtml(key)}</strong></td><td>${escapeHtml(value)}</td></tr>`)
-    .join('');
-  const table = rows ? `<table style="margin-top:4px;">${rows}</table>` : '';
-  return `<div><h4 style="margin:0 0 2px 0;">${name}</h4>${chapterLine}${table}</div>`;
+  return `<div><h4 style="margin:0 0 4px 0;">${name}</h4>${chapterLine}</div>`;
 }
 
 function getFeatureCenter(feature?: DistrictFeature | null): [number, number] | null {
@@ -395,6 +389,24 @@ export default function MapView({
           .setLngLat(event.lngLat)
           .setHTML(buildAttributesHtml((feature?.properties as Record<string, unknown> | undefined) || {}))
           .addTo(map);
+      });
+
+      // Global click: clear selection (and close popup) when clicking outside any district.
+      map.on('click', (event) => {
+        if (isDrawInteractionActive()) {
+          return;
+        }
+        if (!map.getLayer('district-fill')) {
+          return;
+        }
+        const hits = map.queryRenderedFeatures(event.point, { layers: ['district-fill'] });
+        if (hits.length === 0) {
+          onSelectDistrict(null);
+          if (clickPopupRef.current) {
+            clickPopupRef.current.remove();
+            clickPopupRef.current = null;
+          }
+        }
       });
 
       map.on('mouseenter', 'district-fill', () => {
