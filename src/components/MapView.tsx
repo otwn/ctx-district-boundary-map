@@ -35,7 +35,7 @@ type MapViewProps = {
   lineColor: DistrictLineColor;
   districts: DistrictFeatureCollection;
   selectedDistrictId: string | null;
-  onSelectDistrict: (districtId: string) => void;
+  onSelectDistrict: (districtId: string | null) => void;
   canEdit: boolean;
   canAdmin: boolean;
   onBoundarySave: (districtId: string, geometry: DistrictGeometry) => Promise<OperationResult>;
@@ -395,6 +395,24 @@ export default function MapView({
           .setLngLat(event.lngLat)
           .setHTML(buildAttributesHtml((feature?.properties as Record<string, unknown> | undefined) || {}))
           .addTo(map);
+      });
+
+      // Global click: clear selection (and close popup) when clicking outside any district.
+      map.on('click', (event) => {
+        if (isDrawInteractionActive()) {
+          return;
+        }
+        if (!map.getLayer('district-fill')) {
+          return;
+        }
+        const hits = map.queryRenderedFeatures(event.point, { layers: ['district-fill'] });
+        if (hits.length === 0) {
+          onSelectDistrict(null);
+          if (clickPopupRef.current) {
+            clickPopupRef.current.remove();
+            clickPopupRef.current = null;
+          }
+        }
       });
 
       map.on('mouseenter', 'district-fill', () => {
