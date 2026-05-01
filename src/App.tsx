@@ -32,7 +32,7 @@ export default function App() {
   const [districts, setDistricts] = useState<DistrictFeatureCollection>(EMPTY_FC);
   const [history, setHistory] = useState<BoundaryEdit[]>([]);
   const [basemap, setBasemap] = useState('osm-standard');
-  const [lineColor, setLineColor] = useState<DistrictLineColor>('green');
+  const [lineColor, setLineColor] = useState<DistrictLineColor>('black');
   const [viewState, setViewState] = useState<ViewState>({ center: [-97.74, 30.28], zoom: 9 });
   const [selectedDistrictId, setSelectedDistrictId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
