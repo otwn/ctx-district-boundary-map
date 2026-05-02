@@ -28,20 +28,12 @@ import type {
 
 const EMPTY_FC: DistrictFeatureCollection = { type: 'FeatureCollection', features: [] };
 
-const getInitialBasemap = (): string => {
-  if (typeof window === 'undefined') {
-    return 'osm-standard';
-  }
-  const isTouchOrSmallViewport =
-    window.matchMedia('(pointer: coarse)').matches ||
-    window.matchMedia('(max-width: 1024px)').matches;
-  return isTouchOrSmallViewport ? 'google-like-voyager' : 'osm-standard';
-};
+const DEFAULT_BASEMAP = 'google-like-voyager';
 
 export default function App() {
   const [districts, setDistricts] = useState<DistrictFeatureCollection>(EMPTY_FC);
   const [history, setHistory] = useState<BoundaryEdit[]>([]);
-  const [basemap, setBasemap] = useState<string>(getInitialBasemap);
+  const [basemap, setBasemap] = useState<string>(DEFAULT_BASEMAP);
   const [lineColor, setLineColor] = useState<DistrictLineColor>('black');
   const [viewState, setViewState] = useState<ViewState>({ center: [-97.74, 30.28], zoom: 9 });
   const [selectedDistrictId, setSelectedDistrictId] = useState<string | null>(null);
@@ -321,7 +313,7 @@ export default function App() {
           districts={districts}
           selectedDistrictId={selectedDistrictId}
           onSelectDistrict={setSelectedDistrictId}
-          canEdit={isEditor}
+          canEdit={isAdmin}
           canAdmin={isAdmin}
           onBoundarySave={handleBoundarySave}
           onDistrictCreate={handleDistrictCreate}

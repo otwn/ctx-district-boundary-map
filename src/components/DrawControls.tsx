@@ -1,16 +1,30 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import type maplibregl from 'maplibre-gl';
 import type { DistrictFeatureCollection, DistrictGeometry, OperationResult } from '../types/domain';
+import {
+  collectNeighborVertices,
+  computeNeighborPropagations,
+  snapGeometryToNeighbors,
+  snapshotSharedVertices,
+  type SharedVertexSnapshot,
+} from '../lib/topology';
 // @ts-expect-error library ships no declaration for this subpath import.
 import { createGeomanInstance } from '@geoman-io/maplibre-geoman-free/dist/maplibre-geoman.es.js';
 
 type DrawMode = 'idle' | 'edit' | 'create' | 'create-pending' | 'simple_select';
+
+const NEIGHBOR_SNAP_KEY = 'district-neighbors';
 
 type GeomanApi = {
   disableDraw: () => void;
   disableGlobalEditMode: () => void;
   enableGlobalEditMode: () => void;
   enableDraw: (shape: 'polygon') => void;
+  setSnapping?: (snapping: boolean) => void;
+  snappingHelper?: {
+    setCustomSnappingCoordinates: (sectionKey: string, lngLats: Array<[number, number]>) => void;
+    clearCustomSnappingCoordinates: (sectionKey: string) => void;
+  } | null;
   destroy: (options: { removeSources: boolean }) => Promise<void>;
   features: {
     deleteAll: () => void;
@@ -52,6 +66,7 @@ export default function DrawControls({
 }: DrawControlsProps) {
   const geomanRef = useRef<GeomanApi | null>(null);
   const modeRef = useRef<DrawMode>('idle');
+  const sharedVertexSnapshotRef = useRef<SharedVertexSnapshot | null>(null);
   const [editing, setEditing] = useState(false);
 
   const setMode = (mode: DrawMode) => {
@@ -81,6 +96,12 @@ export default function DrawControls({
         const geoman = (await createGeomanInstance(map, {
           settings: {
             controlsUiEnabledByDefault: false,
+          },
+          controls: {
+            helper: {
+              snapping: { active: true },
+              snap_guides: { active: true },
+            },
           },
         })) as GeomanApi;
 
@@ -136,6 +157,10 @@ export default function DrawControls({
       return;
     }
 
+    const neighborVertices = collectNeighborVertices(districts.features, selectedDistrictId);
+    geoman.snappingHelper?.setCustomSnappingCoordinates(NEIGHBOR_SNAP_KEY, neighborVertices);
+    sharedVertexSnapshotRef.current = snapshotSharedVertices(districts.features, selectedDistrictId);
+
     geoman.enableGlobalEditMode();
     setMode('edit');
     setEditing(true);
@@ -162,6 +187,8 @@ export default function DrawControls({
     geoman.disableDraw();
     geoman.disableGlobalEditMode();
     geoman.features.deleteAll();
+    geoman.snappingHelper?.clearCustomSnappingCoordinates(NEIGHBOR_SNAP_KEY);
+    sharedVertexSnapshotRef.current = null;
     setMode('idle');
     setEditing(false);
   };
@@ -176,10 +203,14 @@ export default function DrawControls({
     const feature = collection?.features?.find(
       (entry) => entry?.geometry?.type === 'Polygon' || entry?.geometry?.type === 'MultiPolygon',
     );
-    const geometry = feature?.geometry;
-    if (!geometry) {
+    const rawGeometry = feature?.geometry;
+    if (!rawGeometry) {
       return;
     }
+
+    const excludeId = modeRef.current === 'create' ? '' : selectedDistrictId ?? '';
+    const neighborVertices = collectNeighborVertices(districts.features, excludeId);
+    const geometry = snapGeometryToNeighbors(rawGeometry, neighborVertices);
 
     let result: OperationResult;
     if (modeRef.current === 'create') {
@@ -198,6 +229,17 @@ export default function DrawControls({
 
     if (!result.ok) {
       return;
+    }
+
+    const snapshot = sharedVertexSnapshotRef.current;
+    if (snapshot && modeRef.current === 'edit') {
+      const propagations = computeNeighborPropagations(snapshot, geometry, districts.features);
+      for (const update of propagations) {
+        const neighborResult = await onSave(update.districtId, update.geometry);
+        if (!neighborResult.ok) {
+          console.warn(`Neighbor topology propagation failed for ${update.districtId}:`, neighborResult.message);
+        }
+      }
     }
 
     cancelEditing();
