@@ -1,4 +1,6 @@
 import type { Geometry } from 'geojson';
+import { featureCollection, polygon } from '@turf/helpers';
+import { union } from '@turf/union';
 import fallbackRaw from '../data/districts.geojson?raw';
 import fallbackUrl from '../data/districts.geojson?url';
 import { supabase } from './supabase';
@@ -11,7 +13,6 @@ const FALLBACK_DISTRICT_ORDER = [
   'Pflugerville',
   'Lakeline',
   'Wells Branch',
-  'Walnut Creek',
   'Hyde Park',
   'Downtown',
   'South-Mopac',
@@ -32,10 +33,11 @@ const SOURCE_NAME_TO_CANONICAL: Record<string, (typeof FALLBACK_DISTRICT_ORDER)[
   Pflugerville: 'Pflugerville',
   Lakeline: 'Lakeline',
   'Wells Branch': 'Wells Branch',
-  'Walnut Creek': 'Walnut Creek',
+  // Walnut Creek has been merged into Hyde Park; the loader assembles
+  // both polygons into a single MultiPolygon under the Hyde Park name.
+  'Walnut Creek': 'Hyde Park',
   'Hyde Park': 'Hyde Park',
-  // Delwood polygon is pre-merged into Hyde Park in the GeoJSON,
-  // but keep the alias in case any legacy source still labels it Delwood.
+  // Delwood is also aliased to Hyde Park (legacy source label).
   Delwood: 'Hyde Park',
   Downtown: 'Downtown',
   'South Mopac': 'South-Mopac',
@@ -55,7 +57,6 @@ const DISTRICT_ID_BY_NAME: Record<(typeof FALLBACK_DISTRICT_ORDER)[number], stri
   Pflugerville: 'pflugerville',
   Lakeline: 'lakeline',
   'Wells Branch': 'wells-branch',
-  'Walnut Creek': 'walnut-creek',
   'Hyde Park': 'hyde-park',
   Downtown: 'downtown',
   'South-Mopac': 'south-mopac',
@@ -106,6 +107,51 @@ function normalizeDistrictName(name: string): string {
   return name;
 }
 
+function geometryToPolygonFeatures(geom: DistrictGeometry) {
+  if (geom.type === 'Polygon') {
+    return [polygon(geom.coordinates)];
+  }
+  return geom.coordinates.map((rings) => polygon(rings));
+}
+
+function assembleMultiPolygon(
+  existing: DistrictGeometry,
+  addition: DistrictGeometry,
+): DistrictGeometry {
+  const polygons: number[][][][] = [];
+  if (existing.type === 'Polygon') {
+    polygons.push(existing.coordinates);
+  } else {
+    polygons.push(...existing.coordinates);
+  }
+  if (addition.type === 'Polygon') {
+    polygons.push(addition.coordinates);
+  } else {
+    polygons.push(...addition.coordinates);
+  }
+  return { type: 'MultiPolygon', coordinates: polygons };
+}
+
+function combineByUnion(
+  existing: DistrictGeometry,
+  addition: DistrictGeometry,
+): DistrictGeometry {
+  try {
+    const merged = union(
+      featureCollection([
+        ...geometryToPolygonFeatures(existing),
+        ...geometryToPolygonFeatures(addition),
+      ]),
+    );
+    if (merged && (merged.geometry.type === 'Polygon' || merged.geometry.type === 'MultiPolygon')) {
+      return merged.geometry as DistrictGeometry;
+    }
+  } catch (err) {
+    console.warn('turf union failed, falling back to MultiPolygon assembly:', err);
+  }
+  return assembleMultiPolygon(existing, addition);
+}
+
 function normalizeFallbackDistricts(rawCollection: FallbackCollectionLike): DistrictFeatureCollection {
   const featuresByName = new Map<string, DistrictFeature>();
 
@@ -117,7 +163,21 @@ function normalizeFallbackDistricts(rawCollection: FallbackCollectionLike): Dist
       '';
 
     const canonicalName = SOURCE_NAME_TO_CANONICAL[sourceName];
-    if (!canonicalName || featuresByName.has(canonicalName) || !feature.geometry) {
+    if (!canonicalName || !feature.geometry) {
+      continue;
+    }
+
+    const candidateGeometry = feature.geometry as DistrictGeometry;
+    if (candidateGeometry.type !== 'Polygon' && candidateGeometry.type !== 'MultiPolygon') {
+      continue;
+    }
+
+    const existing = featuresByName.get(canonicalName);
+    if (existing) {
+      featuresByName.set(canonicalName, {
+        ...existing,
+        geometry: combineByUnion(existing.geometry, candidateGeometry),
+      });
       continue;
     }
 
@@ -128,7 +188,7 @@ function normalizeFallbackDistricts(rawCollection: FallbackCollectionLike): Dist
         name: canonicalName,
         color: '#FFD700',
       },
-      geometry: feature.geometry as DistrictGeometry,
+      geometry: candidateGeometry,
     });
   }
 
